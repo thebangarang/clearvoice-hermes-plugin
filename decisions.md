@@ -5,6 +5,30 @@ rejected. Newest first.
 
 ---
 
+## D-020 — `small` everywhere, because the model was the accuracy problem (2026-11-05)
+
+**Decision.** Every language now defaults to Whisper `small`: English was on
+`tiny.en`, the other sixteen on `base`. Both remain selectable overrides.
+
+**Measured** on four sentences (2 French, 2 English), real Piper audio, real
+recogniser, on this 16-core CPU-only box:
+
+| model | mean WER | mean time |
+|---|---|---|
+| `base` (was the default) | 9.4% | 1.1 s |
+| `small` (**now**) | **3.1%** | 2.8 s |
+| `medium` | 6.2% | 15.5 s |
+
+`small` is three times more accurate than what we were shipping, and `medium` is
+both slower and, on short clips, worse. So the "accuracy is far too low" report was
+partly a default that had been chosen for latency we did not need: after the button
+is released, 2.8 s is acceptable; mis-hearing someone is not.
+
+**Cost.** First use downloads ~480 MB. On a machine that cannot afford it, `base`
+is one setting away, and the README says what it costs in accuracy.
+
+---
+
 ## D-019 — ClearVoice may tidy what you said; it may not improve it (2026-11-05)
 
 **Decision.** `rewrite_style` now defaults to **verbatim**: the sentence offered is

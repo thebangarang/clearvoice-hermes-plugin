@@ -44,16 +44,16 @@ class Language:
 
 
 _LANGUAGES: dict[str, Language] = {
-    "en": Language("en", "English", "English", "phonon", "default", "tiny.en"),
-    "fr": Language("fr", "French", "Français", "piper", "fr_FR-siwis-medium", "base"),
-    "de": Language("de", "German", "Deutsch", "piper", "de_DE-thorsten-medium", "base"),
-    "es": Language("es", "Spanish", "Español", "piper", "es_ES-davefx-medium", "base"),
-    "pt": Language("pt", "Portuguese", "Português", "piper", "pt_BR-faber-medium", "base"),
-    "it": Language("it", "Italian", "Italiano", "piper", "it_IT-paola-medium", "base"),
-    "nl": Language("nl", "Dutch", "Nederlands", "piper", "nl_NL-ronnie-medium", "base"),
-    "pl": Language("pl", "Polish", "Polski", "piper", "pl_PL-gosia-medium", "base"),
-    "ru": Language("ru", "Russian", "Русский", "piper", "ru_RU-irina-medium", "base"),
-    "tr": Language("tr", "Turkish", "Türkçe", "piper", "tr_TR-dfki-medium", "base"),
+    "en": Language("en", "English", "English", "phonon", "default", "small"),
+    "fr": Language("fr", "French", "Français", "piper", "fr_FR-siwis-medium", "small"),
+    "de": Language("de", "German", "Deutsch", "piper", "de_DE-thorsten-medium", "small"),
+    "es": Language("es", "Spanish", "Español", "piper", "es_ES-davefx-medium", "small"),
+    "pt": Language("pt", "Portuguese", "Português", "piper", "pt_BR-faber-medium", "small"),
+    "it": Language("it", "Italian", "Italiano", "piper", "it_IT-paola-medium", "small"),
+    "nl": Language("nl", "Dutch", "Nederlands", "piper", "nl_NL-ronnie-medium", "small"),
+    "pl": Language("pl", "Polish", "Polski", "piper", "pl_PL-gosia-medium", "small"),
+    "ru": Language("ru", "Russian", "Русский", "piper", "ru_RU-irina-medium", "small"),
+    "tr": Language("tr", "Turkish", "Türkçe", "piper", "tr_TR-dfki-medium", "small"),
     "ar": Language("ar", "Arabic", "العربية", "piper", "ar_JO-kareem-medium", "small"),
     "hi": Language("hi", "Hindi", "हिन्दी", "piper", "hi_IN-priyamvada-medium", "small"),
     "ja": Language(

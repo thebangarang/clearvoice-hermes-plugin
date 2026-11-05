@@ -180,7 +180,7 @@ ClearVoice speaks and understands **17 languages**, all on-device:
 | | |
 |---|---|
 | **Languages** | English, French, German, Spanish, Portuguese, Italian, Dutch, Polish, Russian, Turkish, Arabic, Hindi, Japanese, Mandarin Chinese, Korean, Thai, Vietnamese |
-| **Recognition** | faster-whisper, multilingual (`tiny`/`base`/`small`). An `.en`-only model is never left in place for a non-English language — it would return fluent nonsense instead of an error, which is the worst possible failure here |
+| **Recognition** | faster-whisper `small`, multilingual — the accuracy-first default measured below. `tiny`/`base` remain available as explicit overrides and are 2–3× worse. An `.en`-only model is never left in place for a non-English language — it would return fluent nonsense instead of an error, which is the worst possible failure here |
 | **Voice, English** | Phonon 31m (Apache-2.0), **37 catalog voices** — Zoey, Juniper, Everly, Harper, Hadley, Delia … downloaded once per voice |
 | **Voice, other 16** | **Piper** (MIT runtime). 108 voice models in the bundled index: 7 French, 10 German, 9 Spanish, 4 Chinese, 3 Hindi, 3 Vietnamese, and one each for Japanese, Korean and Thai |
 | **Voice picker** | In the pane: pick a language, then any voice for it. The choice is remembered (`ctx.storage`), never written into `config.yaml` |

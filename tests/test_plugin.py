@@ -129,7 +129,7 @@ def test_settings_are_read_through_the_plugin_context(plugin, fake_ctx):
     # French: Piper voices it, and a `.en` recogniser is swapped for a
     # multilingual one rather than silently mis-hearing.
     assert settings.resolved_tts_engine == "piper"
-    assert settings.stt_model == "base"
+    assert settings.stt_model == "base"  # the configured ".en" variant is stripped
 
 
 def test_fallback_settings_are_local(plugin):
