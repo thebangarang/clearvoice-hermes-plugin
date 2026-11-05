@@ -144,9 +144,16 @@ voice, three runs per condition):
 
 | Setup | mean word-error-rate | mean time |
 |---|---|---|
-| `base` (default) | ~11–15% | ~1–2 s |
-| `small` | ~5.6% | ~2.7–4 s |
-| `base` + **personal dictionary** | **0–4%** | ~0.9–1.5 s |
+| `base` (default) | **22.6%** (22.2–23.1%) | 1.15 s |
+| `small` | **5.6%** (0.0–11.1%) | 2.80 s |
+| `base` + hotword list | **5.6%** (0.0–11.1%) | 0.99 s |
+| `base` + **personal dictionary** (shipped path) | **3.8%** | 0.89 s |
+
+Six runs per condition, French, the on-device voice synthesising the test audio.
+The spread is real — quantised CPU inference wobbles on borderline words — so
+treat these as orders of magnitude, not a benchmark ranking. The shape is what
+matters: **the dictionary cut errors by 6× and made the slowest option
+unnecessary.**
 
 A short word list — the names, streets, medications and phrases *you* use — passed
 to the recogniser as a prompt fixes repeated errors and costs nothing in latency.

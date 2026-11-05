@@ -280,7 +280,7 @@ to the catalog before validation passes; it passes.
 | Multilingual works | ✅ all 17 languages voice a sentence — verified by real synthesis, including Japanese (0.51 s warm) and Thai |
 | Voice picker works | ✅ 37 English Phonon voices + 108 Piper voices, indexed offline |
 | Pipelines possible | ✅ `clearvoice_transcribe`, `clearvoice_speak` (`deliver: file` for video/audio), `clearvoice_say_back` + a bundled skill |
-| Accuracy improves with use | ✅ personal dictionary: `base` 11–15% WER → 0–4% with the user's own words, at no latency cost |
+| Accuracy improves with use | ✅ personal dictionary: `base` 22.6% WER → 3.8% with the user's own words, 6× fewer errors and faster |
 | Gradium backend implemented, off by default | ✅ triple-gated (switch + backend + key), refuses before any socket |
 | No audio/transcript persisted | ✅ audit-hook test |
 | `validate --install-deps` passes | ✅ output above |

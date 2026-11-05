@@ -11,11 +11,12 @@ rejected. Newest first.
 corrections learned from their edits. No fine-tuning, no cloud training, no
 shared corpus.
 
-**Why.** Measured (`scripts/accuracy_bench.py`, French): `base` 11–15% WER,
-`small` 5.6% at 3–5× the latency, `base` + dictionary 0–4%. The dictionary wins
-on both axes. Fine-tuning Whisper needs hours of paired audio per speaker, a GPU,
-degrades ordinary speech, and would require keeping recordings of an impaired
-voice — the exact data the product promises not to keep.
+**Why.** Measured (`scripts/accuracy_bench.py`, French, 6 runs per condition):
+`base` 22.6% WER, `small` 5.6% at 2.8 s, `base` + hotword list 5.6% at 0.99 s,
+`base` + dictionary 3.8% at 0.89 s. The dictionary wins on both axes. Fine-tuning
+Whisper needs hours of paired audio per speaker, a GPU, degrades ordinary
+speech, and would require keeping recordings of an impaired voice — the exact
+data the product promises not to keep.
 
 **Cost.** The dictionary only knows what the user teaches it; a first session is
 as inaccurate as before. Stated plainly in the pane.

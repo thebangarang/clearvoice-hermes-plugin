@@ -8,9 +8,10 @@ bugs from a real session (unreadable pickers, a voice dropdown that would not
 open, no way to choose where phrases are saved).
 
 **Accuracy, measured before deciding** (`scripts/accuracy_bench.py`, French,
-real voice, 3 runs per condition): `base` 11–15% WER, `small` 5.6% at 3–5×
-latency, `base` + dictionary 0–4%. The lexicon wins on accuracy *and* speed, so
-that is what got built rather than a model upgrade or fine-tuning.
+real voice, 6 runs per condition): `base` 22.6% WER at 1.15 s, `small` 5.6% at
+2.80 s, `base` + hotword list 5.6% at 0.99 s, `base` + dictionary 3.8% at
+0.89 s. The lexicon wins on accuracy *and* speed, so that is what got built
+rather than a model upgrade or fine-tuning.
 
 **Built:**
 
