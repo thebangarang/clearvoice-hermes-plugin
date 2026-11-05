@@ -5,6 +5,32 @@ rejected. Newest first.
 
 ---
 
+## D-016 — Fifteen languages get "polished", not "rebuilt" — and the UI says which (2026-11-05)
+
+**Decision.** English and French have full rule packs. The other 15 get
+`intent_langs.polish()`: punctuation tidied, first letter capitalised, the
+language's own politeness word appended, and the confirmation question in that
+language. Word order is never touched, `reason` is `polished_only`, and the pane
+shows one line saying the sentence was tidied, not rebuilt.
+
+**Why.** Full rebuilding needs per-language grammar — verbs, time expressions,
+determiners, elision — that nobody native has checked for those 15. Shipping
+grammar I cannot verify would produce sentences that read as broken to the very
+people this is for. A polite, clean sentence with an honest label is worth more
+than a confident wrong one.
+
+**Cost.** A German user's fragmented speech is made polite but stays fragmented.
+That is a real limit, and it is the reason a local rewrite model is the v0.4
+plan rather than a "someday" idea: one model, all 17 languages, still offline.
+
+**Extension path, in the order that makes sense.** (1) More packs: each is a
+table plus native review, not a model — and a pack is code, so a speaker can
+contribute one without any user data moving. (2) One small local model, which
+scales to every language at once and costs disk and CPU latency. Neither is
+needed for the hackathon.
+
+---
+
 ## D-015 — The reframer has a rule pack per language, not one English rule set (2026-11-05)
 
 **Decision.** `intent.py` keeps the English rules; `intent_fr.py` holds a French

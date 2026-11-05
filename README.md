@@ -185,11 +185,15 @@ ClearVoice speaks and understands **17 languages**, all on-device:
 | **Voice, other 16** | **Piper** (MIT runtime). 108 voice models in the bundled index: 7 French, 10 German, 9 Spanish, 4 Chinese, 3 Hindi, 3 Vietnamese, and one each for Japanese, Korean and Thai |
 | **Voice picker** | In the pane: pick a language, then any voice for it. The choice is remembered (`ctx.storage`), never written into `config.yaml` |
 | **Out of the box** | All 17 voice a sentence, verified by real synthesis on this machine. **Thai** needs `pip install tltk pandas requests unicode-rbnf` and **Japanese** needs `pyopenjtalk` (declared as optional extras `clearvoice[th]` / `clearvoice[ja]`; `pyopenjtalk` may build from source, so have `cmake` and a C++ compiler). The pane flags a language whose voice is not installed yet and prints the exact command |
-| **Sentence rewriting** | Full reframing rules in **English and French**. The other 15 speak and understand, but their sentences are only tidied at the edges — no verb extraction, no courtesy frame. Honest limit, not a promise |
+| **Sentence rewriting** | Full rebuilding in **English and French**. The other 15 are **polished**: punctuation tidied, capitalised, and closed with the language's own politeness word, with the confirmation question in that language — but the word order is untouched, and the pane says so |
 
 "J'ai besoin… rendez-vous… mardi… déplacer." becomes *"Pourriez-vous déplacer le
 rendez-vous pour mardi, s'il vous plaît ?"* — the same reordering as English, from
 a French rule pack (`clearvoice_engine/intent_fr.py`), not from a model.
+
+German gets *"Ich muss meinen Termin verschieben, bitte."* — its own words, made
+polite, and *"Ist das, was Sie sagen wollten?"* as the check. That distinction
+("rebuilt" vs "polished") is shown in the pane rather than hidden.
 
 Why two engines: Gradium's only permissively-licensed Phonon checkpoint is
 English — the multilingual 40m model is **CC BY-NC**, which a commercial plugin

@@ -14,10 +14,12 @@ offered for the user to pick from.
 from __future__ import annotations
 
 import re
+import unicodedata
 from dataclasses import asdict, dataclass, field
 from typing import Iterable
 
 from . import intent_fr as _fr
+from . import intent_langs as _langs
 from .intent_fr import guess_language
 
 # --------------------------------------------------------------------------
@@ -113,9 +115,25 @@ class Proposal:
 
 
 def clean_transcript(transcript: str) -> str:
-    text = _PUNCT.sub(" ", str(transcript or "")).replace("…", " ")
-    text = _SPACES.sub(" ", text).strip()
-    words = [w for w in text.split(" ") if w and w.lower() not in FILLERS]
+    """Drop punctuation and filler words, keep every script intact.
+
+    A regex of ``[^\\w'-]`` looks right and is not: ``\\w`` matches Devanagari
+    letters but *not* the combining vowel signs, so "मुझे" came back as "म झ" and
+    Thai lost its marks the same way. Keep letters, digits and marks (category
+    M) from any script, space everything else.
+    """
+    kept: list[str] = []
+    for char in str(transcript or ""):
+        if char in "'-":
+            kept.append(char)
+            continue
+        category = unicodedata.category(char)
+        if char.isspace() or category[0] in ("L", "N", "M"):
+            kept.append(char)
+        else:
+            kept.append(" ")
+    text = _SPACES.sub(" ", "".join(kept)).strip()
+    words = [word for word in text.split(" ") if word and word.lower() not in FILLERS]
     return " ".join(words)
 
 
@@ -285,12 +303,15 @@ def reframe(transcript: str, style: str = "courteous", language: str | None = No
     tokens = _tokens(cleaned)
     style = style if style in ("courteous", "literal", "verbatim") else "courteous"
 
-    resolved = (language or "").strip().lower()[:2]
-    if resolved not in ("en", "fr"):
-        resolved = guess_language(cleaned)
+    requested = (language or "").strip().lower()[:2]
+    resolved = requested if requested in _langs.POLITE else guess_language(cleaned)
+    asked = str(transcript or "").strip().endswith(("?", "？", "؟"))
 
     if resolved == "fr":
         return _reframe_fr(cleaned, tokens, style)
+
+    if resolved != "en":
+        return _reframe_polished(cleaned, tokens, style, resolved, asked)
 
     if not tokens:
         return Proposal(
@@ -495,5 +516,51 @@ def _reframe_fr(cleaned: str, tokens: list[str], style: str) -> Proposal:
         candidates=_fr.candidates(intent, message, tokens) if (low or consequential) else [message],
         confirmation_question=question,
         reason=reason,
+        style=style,
+    )
+
+
+def _reframe_polished(
+    cleaned: str, tokens: list[str], style: str, language: str, question: bool = False
+) -> Proposal:
+    """Languages without a grammar pack: polished, politely addressed, not rebuilt.
+
+    ``reason`` says ``polished_only`` so the pane can tell the user the truth —
+    the words are theirs, only the edges and the courtesy are ours.
+    """
+    if not tokens:
+        return Proposal(
+            transcript="",
+            message="",
+            intent="unclear",
+            confidence=0.0,
+            needs_confirmation=True,
+            consequential=False,
+            candidates=[],
+            confirmation_question=_langs.confirm_question(language),
+            reason="no_speech",
+            style=style,
+        )
+
+    entry = _langs.politeness_for(language)
+    if style == "verbatim":
+        message = cleaned[:1].upper() + cleaned[1:]
+        message = message.rstrip(" .,!?;:") + (entry.question if question else entry.stop)
+        intent = "question" if question else "statement"
+    else:
+        message = _langs.polish(cleaned, language, question=question)
+        intent = "question" if question else "request"
+
+    message = message[:MAX_MESSAGE_CHARS]
+    return Proposal(
+        transcript=cleaned,
+        message=message,
+        intent=intent,
+        confidence=0.60,
+        needs_confirmation=True,
+        consequential=False,
+        candidates=[message],
+        confirmation_question=_langs.confirm_question(language),
+        reason="polished_only",
         style=style,
     )

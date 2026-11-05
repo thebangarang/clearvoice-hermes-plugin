@@ -1292,6 +1292,13 @@ function ClearVoice({ compact }) {
             },
             children: [
               jsx('div', { style: { fontWeight: 600, marginBottom: '6px' }, children: proposal.confirmation_question }),
+              proposal.reason === 'polished_only'
+                ? jsx('div', {
+                    style: { fontSize: '0.875rem', color: C.dim, marginBottom: '8px' },
+                    children:
+                      'Tidied and made polite — the words are yours, the order was not changed. Full sentence rebuilding is English and French only.'
+                  })
+                : null,
               jsx('div', {
                 style: { display: 'flex', flexDirection: 'column', gap: '6px' },
                 children: (proposal.candidates || []).map(candidate =>
