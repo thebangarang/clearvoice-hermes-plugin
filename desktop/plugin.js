@@ -623,6 +623,168 @@ function MyPhrases({ phrases, folder, customFolder, onUse, onDelete, onSave, onC
 }
 
 // ---------------------------------------------------------------------------
+// Dictionary — the personal word list that measurably improves accuracy.
+// ---------------------------------------------------------------------------
+
+function Dictionary({ dictionary, learning, newTerm, onNewTerm, onAdd, onRemoveTerm, onClearCorrections, onToggleLearning }) {
+  const terms = (dictionary && dictionary.terms) || []
+  const corrections = (dictionary && dictionary.corrections) || []
+
+  return jsxs('section', {
+    'aria-label': 'Personal dictionary',
+    style: { display: 'flex', flexDirection: 'column', gap: '8px' },
+    children: [
+      jsxs('div', {
+        style: { display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: '8px' },
+        children: [
+          jsx('h3', { style: { margin: 0, fontSize: '1rem', fontWeight: 700, color: C.text }, children: 'Personal dictionary' }),
+          jsx('span', { style: { fontSize: '0.75rem', color: C.faint }, children: `${terms.length} words · ${corrections.length} learned` })
+        ]
+      }),
+      jsx('p', {
+        style: { margin: 0, fontSize: '0.8125rem', color: C.faint, lineHeight: 1.4 },
+        children:
+          'Names, places and words you use often. Adding them makes the recogniser prefer them, which matters more than a bigger model.'
+      }),
+      jsxs('label', {
+        style: { display: 'flex', alignItems: 'flex-start', gap: '8px', fontSize: '0.8125rem', color: C.dim, lineHeight: 1.35 },
+        children: [
+          jsx('input', {
+            type: 'checkbox',
+            checked: Boolean(learning),
+            onChange: event => onToggleLearning(event.target.checked),
+            style: { marginTop: '2px', width: '18px', height: '18px' }
+          }),
+          jsx('span', {
+            children:
+              'Learn from my corrections — off by default. When on, fixing a sentence teaches these rules. Stored only on this machine; nothing is shared.'
+          })
+        ]
+      }),
+      jsxs('div', {
+        style: { display: 'flex', gap: '6px' },
+        children: [
+          jsx('input', {
+            type: 'text',
+            value: newTerm,
+            placeholder: 'Add a word or short phrase',
+            'aria-label': 'Add a word to the dictionary',
+            onChange: event => onNewTerm(event.target.value),
+            onKeyDown: event => {
+              if (event.key === 'Enter') {
+                event.preventDefault()
+                onAdd()
+              }
+            },
+            style: {
+              flex: 1,
+              minHeight: '38px',
+              borderRadius: '9px',
+              border: `1px solid ${C.border}`,
+              background: 'transparent',
+              color: C.text,
+              fontSize: '0.9375rem',
+              padding: '4px 9px',
+              fontFamily: 'inherit'
+            }
+          }),
+          jsx('button', {
+            type: 'button',
+            onClick: onAdd,
+            disabled: !String(newTerm || '').trim(),
+            style: {
+              border: `1px solid ${C.border}`,
+              background: 'transparent',
+              color: String(newTerm || '').trim() ? C.text : C.faint,
+              borderRadius: '9px',
+              padding: '4px 12px',
+              fontSize: '0.8125rem',
+              cursor: 'pointer'
+            },
+            children: 'Add'
+          })
+        ]
+      }),
+      terms.length
+        ? jsx('div', {
+            style: { display: 'flex', flexWrap: 'wrap', gap: '5px' },
+            children: terms.map(term =>
+              jsxs(
+                'span',
+                {
+                  style: {
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    border: `1px solid ${C.border}`,
+                    borderRadius: '999px',
+                    padding: '2px 8px',
+                    fontSize: '0.8125rem',
+                    color: C.text
+                  },
+                  children: [
+                    jsx('span', { children: term }),
+                    jsx('button', {
+                      type: 'button',
+                      'aria-label': `Remove ${term}`,
+                      onClick: () => onRemoveTerm(term),
+                      style: { border: 'none', background: 'transparent', color: C.faint, cursor: 'pointer', padding: 0, fontSize: '0.875rem' },
+                      children: '\u00d7'
+                    })
+                  ]
+                },
+                term
+              )
+            )
+          })
+        : null,
+      corrections.length
+        ? jsxs('div', {
+            style: { display: 'flex', flexDirection: 'column', gap: '4px' },
+            children: [
+              jsx('div', {
+                style: { fontSize: '0.75rem', color: C.faint },
+                children: 'Learned corrections (what it heard → what you meant)'
+              }),
+              jsx('div', {
+                style: { display: 'flex', flexDirection: 'column', gap: '2px', maxHeight: '120px', overflowY: 'auto' },
+                children: corrections
+                  .slice(-8)
+                  .reverse()
+                  .map((entry, index) =>
+                    jsx(
+                      'div',
+                      {
+                        style: { fontSize: '0.8125rem', color: C.dim },
+                        children: `“${entry.heard}” → “${entry.said}”${entry.count > 1 ? ` ×${entry.count}` : ''}`
+                      },
+                      `${entry.heard}-${entry.said}-${index}`
+                    )
+                  )
+              }),
+              jsx('button', {
+                type: 'button',
+                onClick: onClearCorrections,
+                style: {
+                  alignSelf: 'flex-start',
+                  border: `1px solid ${C.border}`,
+                  background: 'transparent',
+                  color: C.faint,
+                  borderRadius: '8px',
+                  padding: '3px 9px',
+                  fontSize: '0.75rem',
+                  cursor: 'pointer'
+                },
+                children: 'Forget learned corrections'
+              })
+            ]
+          })
+        : null
+    ]
+  })
+}
+
+// ---------------------------------------------------------------------------
 // ClearVoice — the pane and the page.
 // ---------------------------------------------------------------------------
 
@@ -644,6 +806,9 @@ function ClearVoice({ compact }) {
   const [phrasesFolder, setPhrasesFolder] = useState('')
   const [phrasesFolderCustom, setPhrasesFolderCustom] = useState(false)
   const [choosingFolder, setChoosingFolder] = useState(false)
+  const [dictionary, setDictionary] = useState({ terms: [], corrections: [], hotwords: '' })
+  const [learning, setLearning] = useState(false)
+  const [newTerm, setNewTerm] = useState('')
 
   const recorderRef = useRef(null)
   const streamRef = useRef(null)
@@ -697,6 +862,40 @@ function ClearVoice({ compact }) {
     },
     []
   )
+
+  const refreshDictionary = useCallback(async () => {
+    if (!REST) return
+    try {
+      const dir = readPref('phrasesDir', '')
+      const query = dir ? `?phrases_dir=${encodeURIComponent(dir)}` : ''
+      const data = await REST(`/dictionary${query}`, { method: 'GET' })
+      if (!mounted.current) return
+      setDictionary({
+        terms: (data && data.terms) || [],
+        corrections: (data && data.corrections) || [],
+        hotwords: (data && data.hotwords) || ''
+      })
+    } catch (err) {
+      /* ignore */
+    }
+  }, [])
+
+  const learnFromEdit = useCallback(async () => {
+    if (!learning || !REST) return
+    const heard = (transcript || '').trim()
+    const said = (draft || '').trim()
+    if (!heard || !said || heard.toLowerCase() === said.toLowerCase()) return
+    try {
+      const dir = readPref('phrasesDir', '')
+      await REST('/dictionary/learn', {
+        method: 'POST',
+        body: { heard, said, learning: true, phrases_dir: dir }
+      })
+      await refreshDictionary()
+    } catch (err) {
+      /* learning is best-effort; never block the turn */
+    }
+  }, [learning, transcript, draft, refreshDictionary])
 
   const stopTracks = useCallback(() => {
     const stream = streamRef.current
@@ -867,6 +1066,44 @@ function ClearVoice({ compact }) {
     }
   }, [draft, playAudio, refreshStatus, language, voice])
 
+  const addTerm = useCallback(async () => {
+    const term = newTerm.trim()
+    if (!term) return
+    try {
+      const dir = readPref('phrasesDir', '')
+      await REST('/dictionary/terms', { method: 'POST', body: { term, phrases_dir: dir } })
+      setNewTerm('')
+      await refreshDictionary()
+    } catch (err) {
+      setError(restErrorText(err))
+    }
+  }, [newTerm, refreshDictionary])
+
+  const removeTerm = useCallback(
+    async term => {
+      try {
+        const dir = readPref('phrasesDir', '')
+        const query = dir ? `&phrases_dir=${encodeURIComponent(dir)}` : ''
+        await REST(`/dictionary/terms?term=${encodeURIComponent(term)}${query}`, { method: 'DELETE' })
+        await refreshDictionary()
+      } catch (err) {
+        /* ignore */
+      }
+    },
+    [refreshDictionary]
+  )
+
+  const clearCorrections = useCallback(async () => {
+    try {
+      const dir = readPref('phrasesDir', '')
+      const query = dir ? `?phrases_dir=${encodeURIComponent(dir)}` : ''
+      await REST(`/dictionary/corrections${query}`, { method: 'DELETE' })
+      await refreshDictionary()
+    } catch (err) {
+      /* ignore */
+    }
+  }, [refreshDictionary])
+
   const clearSession = useCallback(async () => {
     setClearing(true)
     try {
@@ -938,8 +1175,10 @@ function ClearVoice({ compact }) {
     setLanguage(savedLanguage)
     setVoice(savedVoice)
     setRewriteStyle(savedStyle)
+    setLearning(readPref('learning', false) === true)
     void refreshStatus()
     void refreshPhrases()
+    void refreshDictionary()
     void refreshVoices(savedLanguage)
     const timer = setInterval(async () => {
       if (!REST) return
@@ -969,7 +1208,7 @@ function ClearVoice({ compact }) {
         playerRef.current = null
       }
     }
-  }, [playAudio, refreshPhrases, refreshStatus, refreshVoices, stopTracks])
+  }, [playAudio, refreshPhrases, refreshStatus, refreshVoices, refreshDictionary, stopTracks])
 
   const listening = phase === 'listening'
   const busy = phase === 'understanding' || phase === 'speaking'
@@ -1114,7 +1353,10 @@ function ClearVoice({ compact }) {
               }),
               jsx('button', {
                 type: 'button',
-                onClick: () => setEditing(value => !value),
+                onClick: () => {
+                  if (editing) void learnFromEdit()
+                  setEditing(value => !value)
+                },
                 style: {
                   flex: '1 1 120px',
                   minHeight: '56px',
@@ -1195,6 +1437,20 @@ function ClearVoice({ compact }) {
         onReveal: revealPhrasesFolder,
         canSave: Boolean(draft.trim()),
         saving
+      }),
+
+      jsx(Dictionary, {
+        dictionary,
+        learning,
+        newTerm,
+        onNewTerm: setNewTerm,
+        onAdd: () => void addTerm(),
+        onRemoveTerm: term => void removeTerm(term),
+        onClearCorrections: () => void clearCorrections(),
+        onToggleLearning: value => {
+          setLearning(value)
+          writePref('learning', value)
+        }
       }),
 
       jsx(PrivacyBadge, { status, onClear: () => void clearSession(), clearing }),

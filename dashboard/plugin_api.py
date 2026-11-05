@@ -149,7 +149,11 @@ async def transcribe(payload: dict[str, Any]) -> dict[str, Any]:
 
     try:
         result = await asyncio.to_thread(
-            stt.transcribe, clip, settings, get_key=lambda: _get_secret(GRADIUM_KEY_ENV)
+            stt.transcribe,
+            clip,
+            settings,
+            get_key=lambda: _get_secret(GRADIUM_KEY_ENV),
+            lexicon=_lexicon(payload),
         )
     except stt.NoSpeechDetected as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from None
@@ -170,6 +174,7 @@ async def transcribe(payload: dict[str, Any]) -> dict[str, Any]:
         "backend": result.backend,
         "language": result.language,
         "duration_s": round(result.duration_s, 2),
+        "corrections_applied": result.corrections_applied,
         "proposal": proposal.public(),
         "status": _settings().status(),
     }
@@ -257,6 +262,54 @@ def _phrases(overrides: dict[str, Any] | None = None):
     settings = _settings(overrides)
     folder = settings.phrases_folder()
     return runtime.phrases(folder if folder is not None else runtime.data_dir())
+
+
+def _lexicon(overrides: dict[str, Any] | None = None):
+    """The personal dictionary (hotwords + learned corrections). Local only."""
+    settings = _settings(overrides)
+    folder = settings.phrases_folder()
+    return runtime.lexicon(folder if folder is not None else runtime.data_dir())
+
+
+@router.get("/dictionary")
+async def get_dictionary(phrases_dir: str | None = None) -> dict[str, Any]:
+    store = _lexicon({"phrases_dir": phrases_dir} if phrases_dir else None)
+    return store.public()
+
+
+@router.post("/dictionary/terms")
+async def add_term(payload: dict[str, Any]) -> dict[str, Any]:
+    body = payload or {}
+    store = _lexicon(body)
+    try:
+        added = store.add_term(str(body.get("term") or ""))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from None
+    return {"added": added, **store.public()}
+
+
+@router.delete("/dictionary/terms")
+async def remove_term(term: str, phrases_dir: str | None = None) -> dict[str, Any]:
+    store = _lexicon({"phrases_dir": phrases_dir} if phrases_dir else None)
+    return {"removed": store.remove_term(term), **store.public()}
+
+
+@router.post("/dictionary/learn")
+async def learn_from_edit(payload: dict[str, Any]) -> dict[str, Any]:
+    """Learn one heard → meant pair. Refused unless the user enabled learning."""
+    body = payload or {}
+    if not body.get("learning", False):
+        raise HTTPException(status_code=409, detail="Learning from corrections is off. Turn it on in the pane to use it.")
+    store = _lexicon(body)
+    pairs = store.learn(str(body.get("heard") or ""), str(body.get("said") or ""), enabled=True)
+    return {"learned": pairs, **store.public()}
+
+
+@router.delete("/dictionary/corrections")
+async def clear_corrections(phrases_dir: str | None = None) -> dict[str, Any]:
+    store = _lexicon({"phrases_dir": phrases_dir} if phrases_dir else None)
+    removed = store.clear_corrections()
+    return {"removed": removed, **store.public()}
 
 
 @router.get("/phrases")

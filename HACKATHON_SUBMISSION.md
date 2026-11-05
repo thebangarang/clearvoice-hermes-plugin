@@ -6,8 +6,9 @@
 | | |
 |---|---|
 | **Plugin name** | `clearvoice` |
-| **Version** | 0.2.0 |
+| **Version** | 0.3.0 |
 | **Licence** | MIT |
+| **Tools** | 3 — `clearvoice_transcribe`, `clearvoice_speak`, `clearvoice_say_back` |
 | **Languages** | 17 — English, French, German, Spanish, Portuguese, Italian, Dutch, Polish, Russian, Turkish, Arabic, Hindi, Japanese, Mandarin, Korean, Thai, Vietnamese |
 | **Category** | accessibility / speech |
 | **Hermes surfaces used** | `ctx.register_tool`, `ctx.register_command`, Desktop SDK (pane, route, sidebar nav, palette, status bar), `ctx.rest` → `dashboard/plugin_api.py` |
@@ -212,10 +213,10 @@ Validation passed.
 Plugin Doctor: /home/hermes/projects/Clearvoice-hermes-plugin
   manifest: clearvoice 0.2.0 (standalone)
   OK: runtime discovery, manifest parsing, import, and registration passed
-  registrations: 1 tool(s), 0 hook(s)
+  registrations: 3 tool(s), 0 hook(s)
 ```
 
-Unit tests: `58 passed`. End-to-end smoke test (real models, no microphone):
+Unit tests: `75 passed`. End-to-end smoke test (real models, no microphone):
 
 ```
 1. synthesizing with on-device Phonon ... 138284 bytes, 2.88s of speech, 1310 ms
@@ -278,6 +279,8 @@ to the catalog before validation passes; it passes.
 | Phonon local TTS works | ✅ Apache-2.0 31m on CPU, verified end to end |
 | Multilingual works | ✅ all 17 languages voice a sentence — verified by real synthesis, including Japanese (0.51 s warm) and Thai |
 | Voice picker works | ✅ 37 English Phonon voices + 108 Piper voices, indexed offline |
+| Pipelines possible | ✅ `clearvoice_transcribe`, `clearvoice_speak` (`deliver: file` for video/audio), `clearvoice_say_back` + a bundled skill |
+| Accuracy improves with use | ✅ personal dictionary: `base` 11–15% WER → 0–4% with the user's own words, at no latency cost |
 | Gradium backend implemented, off by default | ✅ triple-gated (switch + backend + key), refuses before any socket |
 | No audio/transcript persisted | ✅ audit-hook test |
 | `validate --install-deps` passes | ✅ output above |

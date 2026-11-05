@@ -1,5 +1,42 @@
 # Worklog
 
+## 2026-11-05 (v0.3.0) — three tools, a personal dictionary, learning off by default
+
+**Trigger:** two questions from the user — "how do we improve accuracy, and can
+it learn?" and "this is just a panel, where are the functions?" — plus three UI
+bugs from a real session (unreadable pickers, a voice dropdown that would not
+open, no way to choose where phrases are saved).
+
+**Accuracy, measured before deciding** (`scripts/accuracy_bench.py`, French,
+real voice, 3 runs per condition): `base` 11–15% WER, `small` 5.6% at 3–5×
+latency, `base` + dictionary 0–4%. The lexicon wins on accuracy *and* speed, so
+that is what got built rather than a model upgrade or fine-tuning.
+
+**Built:**
+
+- `clearvoice_engine/lexicon.py` — `dictionary.json`: user terms, learned
+  heard→said pairs, `hotwords()` for the recogniser, `apply()` for corrections,
+  word-level diff learning. Caps, dedupe, accent-insensitive matching.
+- Tools: `clearvoice_transcribe` (audio file → text), `clearvoice_speak`
+  (text → speech, `deliver: pane|file`), `clearvoice_say_back`
+  (listen → propose → speak). Bundled skill `skills/clearvoice/SKILL.md`.
+- `deliver: file` is gated behind a new `allow_speech_files` setting (off by
+  default) so the "nothing written" promise survives by default.
+- Pane: readable pickers (app's own Select, OS-colour fallback), voices scoped to
+  the language and ordered best-first, a Personal dictionary panel, a
+  "Learn from my corrections" switch (off by default), and a choosable saved-
+  phrases folder with "Open folder".
+- Docs: README accuracy section, PRIVACY (dictionary + "no community, ever"),
+  SECURITY (writes), decisions D-012/D-013.
+
+**Verified:** 75 tests; `validate` green with three declared tools; `doctor`
+`3 tool(s), 0 hook(s)`.
+
+**Open:** the pane needs one gateway restart to see the new routes; then the
+multilingual demo.
+
+---
+
 ## 2026-11-05 (later) — v0.2.0: 17 languages, voice picker, rewrite styles
 
 **Trigger:** the plugin worked in English but did nothing in French; the user

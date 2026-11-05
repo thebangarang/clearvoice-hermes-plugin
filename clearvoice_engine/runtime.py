@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Any
 
 from .privacy import SavedPhrases, SessionStore
+from .lexicon import Lexicon
 
 #: Session transcript/caption memory. In RAM, cleared on request.
 session = SessionStore()
@@ -67,6 +68,8 @@ outbox = AudioOutbox()
 
 _phrases: SavedPhrases | None = None
 _phrases_dir: Path | None = None
+_lexicon: Lexicon | None = None
+_lexicon_dir: Path | None = None
 
 
 def data_dir() -> Path:
@@ -93,11 +96,24 @@ def phrases(directory: Path | str | None = None) -> SavedPhrases:
     return _phrases
 
 
+def lexicon(directory: Path | str | None = None) -> Lexicon:
+    """The personal dictionary. Lives beside the saved phrases."""
+    global _lexicon, _lexicon_dir
+    target = Path(directory) if directory is not None else data_dir()
+    if _lexicon is None or _lexicon_dir != target:
+        _lexicon = Lexicon(target)
+        _lexicon_dir = target
+    return _lexicon
+
+
 def reset_for_tests() -> None:
-    global _phrases
+    global _phrases, _phrases_dir, _lexicon, _lexicon_dir
     session.clear()
     outbox.clear()
     _phrases = None
+    _phrases_dir = None
+    _lexicon = None
+    _lexicon_dir = None
 
 
 def status_payload() -> dict[str, Any]:

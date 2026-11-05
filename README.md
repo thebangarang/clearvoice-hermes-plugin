@@ -137,6 +137,35 @@ The full statement is in [PRIVACY.md](PRIVACY.md).
 
 ---
 
+## Accuracy: your own words beat a bigger model
+
+Measured on this machine with `scripts/accuracy_bench.py` (French audio, real
+voice, three runs per condition):
+
+| Setup | mean word-error-rate | mean time |
+|---|---|---|
+| `base` (default) | ~11–15% | ~1–2 s |
+| `small` | ~5.6% | ~2.7–4 s |
+| `base` + **personal dictionary** | **0–4%** | ~0.9–1.5 s |
+
+A short word list — the names, streets, medications and phrases *you* use — passed
+to the recogniser as a prompt fixes repeated errors and costs nothing in latency.
+That is the **Personal dictionary** in the pane:
+
+- **Add words** you say often (a name, a street, a treatment). They bias the
+  recogniser toward them.
+- **Learn from my corrections** (off by default). When you fix a proposed
+  sentence, the pair "what it heard → what you meant" is stored locally and
+  applied to later transcripts.
+- Everything is visible in the pane, deletable in one click, and kept in
+  `dictionary.json` in the plugin's data folder. **Nothing is shared, ever** — no
+  community packs, no upload, no telemetry.
+
+If accuracy feels unreliable, that is the first thing to turn on: a dozen words
+usually does more than a model three times slower.
+
+---
+
 ## Languages and voices
 
 ClearVoice speaks and understands **17 languages**, all on-device:
@@ -276,11 +305,21 @@ to know the pipeline works on your machine before you trust it with your voice.
 | Insert a saved phrase | Tap it in *My phrases* — it becomes the sentence, unspoken until you say so |
 | Use it from a chat | `/clearvoice` opens the pane; `/clearvoice <words>` proposes a sentence in the transcript |
 | Let the agent speak | The tool `clearvoice_speak` (see below), always through the pane, never on its own |
+| Transcribe a recording | `clearvoice_transcribe` — audio file in, text out |
+| "Say it again, clearly" on a file | `clearvoice_say_back` — listen, propose, speak |
 
-### The `clearvoice_speak` tool
+### The tools — for the agent, and for your own pipelines
 
-Registered for the model with four parameters: `text`, `voice_profile`,
-`backend`, and `confirm_required`. It is deliberately two-step:
+ClearVoice is not only a pane. Three tools are registered for the model, and the
+same code is importable, so a workflow can use whichever half it needs:
+
+| Tool | Input → output | Use it for |
+|---|---|---|
+| `clearvoice_transcribe` | `audio_path` → transcript (+ optional reframed sentence) | dictation, voice notes, meeting snippets, subtitles |
+| `clearvoice_speak` | `text` → speech in the pane, or one WAV with `deliver: "file"` | reading something aloud, voice-over, an agent that speaks |
+| `clearvoice_say_back` | `audio_path` → transcript → clear sentence → spoken | repeating an unclear recording so someone else understands it |
+
+`clearvoice_speak` is deliberately two-step:
 
 ```jsonc
 // confirm_required: true (the default) — refuses, and returns the sentence
@@ -297,6 +336,14 @@ A model cannot make this plugin say something the user has not seen: the pane
 sets `confirm_required: false` only after the user pressed **Speak it** on a
 sentence on screen. If the pane is closed the audio is discarded after 120 s and
 nothing lands on disk.
+
+`deliver: "file"` is the one way speech reaches the disk, it writes exactly one
+WAV into the plugin's `speech/` folder, and it stays **off** until you enable
+*Allow speech files* in settings. That is what a video, podcast or another agent
+pipeline uses.
+
+A bundled skill (`clearvoice`) teaches the agent when to reach for each tool and
+that the approval gate is not optional.
 
 ---
 

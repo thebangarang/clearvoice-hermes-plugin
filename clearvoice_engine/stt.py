@@ -9,6 +9,7 @@ from typing import Callable
 import numpy as np
 
 from . import audio, cloud
+from .lexicon import Lexicon
 from .settings import Settings
 
 
@@ -27,6 +28,7 @@ class TranscriptionResult:
     language: str
     model: str = ""
     duration_s: float = 0.0
+    corrections_applied: int = 0
 
 
 _local_models: dict[tuple[str, str], object] = {}
@@ -149,17 +151,21 @@ def transcribe(
     settings: Settings,
     *,
     get_key: Callable[[], str | None] | None = None,
+    lexicon: Lexicon | None = None,
 ) -> TranscriptionResult:
     """Turn a recorded clip into text, or explain in plain language why not.
 
     The cloud path is refused before any network call unless the user both
-    enabled cloud speech *and* selected Gradium for transcription.
+    enabled cloud speech *and* selected Gradium for transcription. When a
+    personal dictionary is given, its words bias the recogniser (hotwords) and
+    its learned corrections are applied to the result.
     """
     samples = (
         audio.decode_to_mono16k(clip_or_samples)
         if isinstance(clip_or_samples, (bytes, bytearray))
         else np.asarray(clip_or_samples, dtype=np.float32)
     )
+    hotwords = lexicon.hotwords() if lexicon is not None else None
 
     if settings.stt_backend == "gradium":
         if not settings.allow_cloud:
@@ -173,8 +179,12 @@ def transcribe(
     else:
         if not audio.looks_like_speech(samples):
             raise NoSpeechDetected("I didn't catch that - try again.")
-        result = transcribe_local(samples, settings)
+        result = transcribe_local(samples, settings, hotwords=hotwords)
 
     if not result.text:
         raise NoSpeechDetected("I didn't catch that - try again.")
+    if lexicon is not None:
+        corrected, applied = lexicon.apply(result.text)
+        result.text = corrected
+        result.corrections_applied = len(applied)
     return result

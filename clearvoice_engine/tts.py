@@ -133,13 +133,13 @@ def voices_for(language_code: str) -> list[dict]:
     return piper.voices(language.code)
 
 
-def synthesize_phonon(text: str, settings: Settings, voice: str | None = None) -> SynthesisResult:
+def synthesize_phonon(text: str, settings: Settings, voice: str | None = None, seed: int | None = None) -> SynthesisResult:
     model = _load_phonon()
     available = {v["voice"] for v in phonon_voices()}
     wanted = (voice or settings.voice or PHONON_DEFAULT_VOICE).strip()
     chosen = wanted if wanted in available else PHONON_DEFAULT_VOICE
     try:
-        samples = model.synth(text, voice=chosen)
+        samples = model.synth(text, voice=chosen, seed=seed)
         sample_rate = int(model.sample_rate)
     except Exception as exc:
         raise SynthesisError("The on-device voice could not speak that sentence. Try again, or edit the text.") from exc
@@ -199,6 +199,7 @@ def synthesize(
     backend: str | None = None,
     voice: str | None = None,
     get_key: Callable[[], str | None] | None = None,
+    seed: int | None = None,
 ) -> SynthesisResult:
     """Speak ``text`` and return the audio bytes. Nothing is written to disk."""
     spoken = " ".join(str(text or "").split())
@@ -229,4 +230,4 @@ def synthesize(
     if chosen == "piper":
         return synthesize_piper(spoken, settings, voice)
 
-    return synthesize_phonon(spoken, settings, voice)
+    return synthesize_phonon(spoken, settings, voice, seed=seed)

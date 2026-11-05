@@ -50,22 +50,28 @@ def wer(reference: str, hypothesis: str) -> float:
     return previous[-1] / len(ref)
 
 
-def run(model_name: str, hotwords: str | None) -> None:
+REPETITIONS = 3
+
+
+def run(model_name: str, hotwords: str | None, lexicon=None) -> None:
     settings = Settings.from_mapping({"language": "fr"})
     stt.reset_local_models()
-    total_wer = 0.0
+    scores: list[float] = []
+    elapsed_all: list[float] = []
+    label = model_name + (" +lexicon" if hotwords else "") + (" +dictionary" if lexicon is not None else "")
     for text in REFERENCES:
         spoken = tts.synthesize(text, settings)
-        started = time.time()
-        result = stt.transcribe_with_model(
-            spoken.wav, settings, model_name=model_name, hotwords=hotwords
-        )
-        elapsed = time.time() - started
-        score = wer(text, result.text)
-        total_wer += score
-        print(f"  [{model_name}{' +lexicon' if hotwords else ''}] {score * 100:5.1f}% WER "
-              f"{elapsed:5.2f}s -> {result.text}")
-    print(f"  mean WER: {total_wer / len(REFERENCES) * 100:.1f}%\n")
+        for _ in range(REPETITIONS):
+            started = time.time()
+            result = stt.transcribe_with_model(
+                spoken.wav, settings, model_name=model_name, hotwords=hotwords
+            )
+            elapsed_all.append(time.time() - started)
+            scores.append(wer(text, result.text))
+    mean = sum(scores) / len(scores)
+    spread = f"{min(scores) * 100:.1f}–{max(scores) * 100:.1f}%"
+    print(f"  [{label:20}] mean WER {mean * 100:5.1f}%  ({spread} over {len(scores)} runs)  "
+          f"mean {sum(elapsed_all) / len(elapsed_all):5.2f}s")
 
 
 def main() -> int:
@@ -76,6 +82,30 @@ def main() -> int:
     for model_name in ("base", "small"):
         run(model_name, None)
     run("base", LEXICON)
+
+    print("shipped path: stt.transcribe() with a personal dictionary")
+    import tempfile
+
+    from clearvoice_engine.lexicon import Lexicon
+
+    lexicon = Lexicon(tempfile.mkdtemp(prefix="cv-lex-"))
+    for term in ("Lefèvre", "ordonnances", "rendez-vous"):
+        lexicon.add_term(term)
+    lexicon.learn("le faire", "Lefèvre", enabled=True)
+
+    settings = Settings.from_mapping({"language": "fr"})
+    scores = []
+    for text in REFERENCES:
+        spoken = tts.synthesize(text, settings)
+        for _ in range(REPETITIONS):
+            started = time.time()
+            result = stt.transcribe(spoken.wav, settings, lexicon=lexicon)
+            elapsed = time.time() - started
+            scores.append(wer(text, result.text))
+            print(f"  [base +dictionary] {scores[-1] * 100:5.1f}% WER {elapsed:5.2f}s "
+                  f"(corrections: {result.corrections_applied}) -> {result.text}")
+    mean = sum(scores) / len(scores)
+    print(f"  mean WER: {mean * 100:.1f}% over {len(scores)} runs")
     return 0
 
 

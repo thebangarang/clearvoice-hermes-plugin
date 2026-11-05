@@ -67,7 +67,7 @@ class _StubPhonon:
     sample_rate = 24000
     voices = ["default"]
 
-    def synth(self, text, voice=None):
+    def synth(self, text, voice=None, **kwargs):
         return np.zeros(2400, dtype=np.float32)
 
 

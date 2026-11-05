@@ -1,5 +1,5 @@
 name: clearvoice
-version: 0.2.1
+version: 0.3.0
 manifest_version: 2
 description: >
   Privacy-first push-to-talk speech-clarity bridge, in 17 languages. You speak
@@ -81,3 +81,8 @@ config_schema:
     default: false
     label: Allow speech files (pipelines, video)
     description: "Off by default: generated speech is played in memory and never written. Turn on to let clearvoice_speak deliver='file' write one WAV into the plugin data directory, so a video, podcast or agent pipeline can use it."
+  learn_from_edits:
+    type: bool
+    default: false
+    label: Learn from my corrections
+    description: "Off by default. When on, editing a proposed sentence teaches the personal dictionary (your words bias the recogniser and fix repeated mishearings). Stored locally in dictionary.json, visible and deletable in the pane, never sent anywhere."

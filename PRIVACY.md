@@ -45,6 +45,12 @@ pane also tears the stream down if it is unmounted mid-recording.
   never a history of when you used it. Stored at
   `<hermes home>/plugin-data/clearvoice/phrases.json` (mode-restricted by your
   user account). Delete them one by one in *My phrases*, or delete the file.
+- **Your personal dictionary: only if you use it.** Words you add, plus the
+  corrections learned **only when you switch learning on** (it is off by
+  default), in `dictionary.json` beside the phrases. It exists to make the
+  recogniser hear *your* names correctly. It is never uploaded, never shared with
+  other users, and never leaves the machine — there is no community dictionary
+  and none is planned.
 
 There is no analytics, no crash-reporting endpoint, no "anonymous usage
 statistics" option, and no identifier of any kind tied to you.

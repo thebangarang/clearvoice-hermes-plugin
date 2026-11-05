@@ -24,7 +24,7 @@ description: >-
 maintainer: thebangarang
 tier: community
 category: voice
-version: "0.2.1"
+version: "0.3.0"
 docs_url: https://github.com/thebangarang/clearvoice-hermes-plugin/blob/main/README.md
 platforms: [linux, macos, windows]
 title: ClearVoice

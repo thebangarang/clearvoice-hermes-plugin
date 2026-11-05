@@ -5,6 +5,38 @@ rejected. Newest first.
 
 ---
 
+## D-013 — Accuracy comes from a personal dictionary, not from training (2026-11-05)
+
+**Decision.** Accuracy work is: hotwords from a user's own word list, plus
+corrections learned from their edits. No fine-tuning, no cloud training, no
+shared corpus.
+
+**Why.** Measured (`scripts/accuracy_bench.py`, French): `base` 11–15% WER,
+`small` 5.6% at 3–5× the latency, `base` + dictionary 0–4%. The dictionary wins
+on both axes. Fine-tuning Whisper needs hours of paired audio per speaker, a GPU,
+degrades ordinary speech, and would require keeping recordings of an impaired
+voice — the exact data the product promises not to keep.
+
+**Cost.** The dictionary only knows what the user teaches it; a first session is
+as inaccurate as before. Stated plainly in the pane.
+
+---
+
+## D-012 — No community dictionary, ever (2026-11-05)
+
+**Decision.** Learned corrections and word lists stay on the machine. There is no
+export-to-community, no pack download, no shared corpus.
+
+**Why.** A dictionary of a person's recurring sentences, names, treatments and
+addresses is health-adjacent personal data. Aggregating it — even "anonymised" —
+is processing under GDPR with no lawful basis this project can offer, and the
+people it protects are the least able to consent meaningfully. The value of a
+shared pack does not outweigh that.
+
+**Cost.** Every user starts from zero. Accepted.
+
+---
+
 ## D-011 — The pane's language/voice choice is a per-request override (2026-11-05)
 
 **Decision.** The pane sends `language`, `voice` and `rewrite_style` in the

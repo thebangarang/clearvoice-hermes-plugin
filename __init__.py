@@ -340,8 +340,16 @@ def clearvoice_transcribe(args, **kwargs) -> str:
 
         from clearvoice_engine import intent, stt
 
+        lexicon = None
         try:
-            result = stt.transcribe(clip, settings, get_key=lambda: _get_secret(GRADIUM_KEY_ENV))
+            from clearvoice_engine import runtime as _runtime
+
+            lexicon = _runtime.lexicon()
+        except Exception:
+            lexicon = None
+
+        try:
+            result = stt.transcribe(clip, settings, get_key=lambda: _get_secret(GRADIUM_KEY_ENV), lexicon=lexicon)
         except Exception as exc:
             return _error(str(exc) or "Transcription failed.")
 
@@ -351,6 +359,7 @@ def clearvoice_transcribe(args, **kwargs) -> str:
             "model": result.model,
             "backend": result.backend,
             "duration_s": round(result.duration_s, 2),
+            "corrections_applied": result.corrections_applied,
             "saved": False,
         }
         if (args or {}).get("reframe"):
@@ -385,7 +394,14 @@ def clearvoice_say_back(args, **kwargs) -> str:
         from clearvoice_engine import intent, stt
 
         try:
-            result = stt.transcribe(clip, settings, get_key=lambda: _get_secret(GRADIUM_KEY_ENV))
+            from clearvoice_engine import runtime as _rt
+
+            _lex = _rt.lexicon()
+        except Exception:
+            _lex = None
+
+        try:
+            result = stt.transcribe(clip, settings, get_key=lambda: _get_secret(GRADIUM_KEY_ENV), lexicon=_lex)
         except Exception as exc:
             return _error(str(exc) or "Transcription failed.")
 
