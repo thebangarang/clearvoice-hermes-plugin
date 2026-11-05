@@ -46,6 +46,7 @@ class Settings:
     allow_cloud: bool = False
     has_gradium_key: bool = False
     phrases_dir: str = ""
+    allow_speech_files: bool = False
 
     @classmethod
     def from_mapping(cls, mapping: Mapping[str, Any] | None, *, has_key: bool = False) -> "Settings":
@@ -62,6 +63,7 @@ class Settings:
             allow_cloud=_as_bool(data.get("allow_cloud"), False),
             has_gradium_key=has_key or _as_bool(data.get("has_gradium_key"), False),
             phrases_dir=str(data.get("phrases_dir") or "").strip(),
+            allow_speech_files=_as_bool(data.get("allow_speech_files"), False),
         )
 
     # --- derived state -----------------------------------------------------

@@ -18,6 +18,8 @@ tags: [accessibility, speech, tts, stt, privacy, local-first, multilingual]
 requires_hermes: ">=0.22.0"
 provides_tools:
   - clearvoice_speak
+  - clearvoice_transcribe
+  - clearvoice_say_back
 provides_hooks: []
 config_schema:
   language:
@@ -74,3 +76,8 @@ config_schema:
     default: false
     label: Allow cloud speech (Gradium)
     description: "Off by default. When on, a session may send the chosen audio or text to Gradium's API - only if the Gradium backend is selected for that step."
+  allow_speech_files:
+    type: bool
+    default: false
+    label: Allow speech files (pipelines, video)
+    description: "Off by default: generated speech is played in memory and never written. Turn on to let clearvoice_speak deliver='file' write one WAV into the plugin data directory, so a video, podcast or agent pipeline can use it."

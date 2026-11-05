@@ -72,8 +72,15 @@ def reset_local_models() -> None:
         _local_models.clear()
 
 
-def transcribe_local(samples: np.ndarray, settings: Settings) -> TranscriptionResult:
-    model_name = settings.stt_model
+def transcribe_local(
+    samples: np.ndarray,
+    settings: Settings,
+    *,
+    model_name: str | None = None,
+    hotwords: str | None = None,
+    initial_prompt: str | None = None,
+) -> TranscriptionResult:
+    model_name = model_name or settings.stt_model
     model = _load_local_model(model_name)
     try:
         segments, info = model.transcribe(
@@ -82,6 +89,8 @@ def transcribe_local(samples: np.ndarray, settings: Settings) -> TranscriptionRe
             language=settings.language or None,
             vad_filter=True,
             condition_on_previous_text=False,
+            hotwords=hotwords or None,
+            initial_prompt=initial_prompt or None,
         )
         text = " ".join(segment.text.strip() for segment in segments).strip()
     except Exception as exc:
@@ -93,6 +102,34 @@ def transcribe_local(samples: np.ndarray, settings: Settings) -> TranscriptionRe
         model=model_name,
         duration_s=float(getattr(info, "duration", 0.0) or 0.0),
     )
+
+
+def transcribe_with_model(
+    clip_or_samples: bytes | np.ndarray,
+    settings: Settings,
+    *,
+    model_name: str | None = None,
+    hotwords: str | None = None,
+    initial_prompt: str | None = None,
+) -> TranscriptionResult:
+    """Local transcription with an explicit model / vocabulary bias (bench, dictionary)."""
+    samples = (
+        audio.decode_to_mono16k(clip_or_samples)
+        if isinstance(clip_or_samples, (bytes, bytearray))
+        else np.asarray(clip_or_samples, dtype=np.float32)
+    )
+    if not audio.looks_like_speech(samples):
+        raise NoSpeechDetected("I didn't catch that - try again.")
+    result = transcribe_local(
+        samples,
+        settings,
+        model_name=model_name,
+        hotwords=hotwords,
+        initial_prompt=initial_prompt,
+    )
+    if not result.text:
+        raise NoSpeechDetected("I didn't catch that - try again.")
+    return result
 
 
 def transcribe_cloud(samples: np.ndarray, settings: Settings, get_key: Callable[[], str | None]) -> TranscriptionResult:

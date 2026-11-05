@@ -191,10 +191,10 @@ def test_unknown_backend_values_fall_back_to_local():
     assert settings.allow_cloud is True
 
 
-def test_manifest_declares_one_tool_and_no_broad_capabilities():
+def test_manifest_declares_the_three_tools_and_no_broad_capabilities():
     manifest = yaml.safe_load((ROOT / "plugin.yaml").read_text(encoding="utf-8"))
     assert manifest["name"] == "clearvoice"
-    assert manifest["provides_tools"] == ["clearvoice_speak"]
+    assert manifest["provides_tools"] == ["clearvoice_speak", "clearvoice_transcribe", "clearvoice_say_back"]
     assert not manifest.get("provides_hooks")
     # No privileged host surface is requested at all.
     assert not manifest.get("capabilities")

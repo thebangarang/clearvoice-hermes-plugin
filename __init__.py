@@ -16,6 +16,7 @@ from __future__ import annotations
 import json
 import logging
 import sys
+import time
 from pathlib import Path
 
 _ROOT = str(Path(__file__).resolve().parent)
@@ -26,6 +27,7 @@ logger = logging.getLogger(__name__)
 
 PLUGIN_ID = "clearvoice"
 GRADIUM_KEY_ENV = "CLEARVOICE_GRADIUM_API_KEY"
+MAX_AUDIO_FILE_BYTES = 25 * 1024 * 1024
 
 CLEARVOICE_SPEAK = {
     "name": "clearvoice_speak",
@@ -64,8 +66,82 @@ CLEARVOICE_SPEAK = {
                     "false = speak it now, only after the user has seen and accepted this exact text."
                 ),
             },
+            "deliver": {
+                "type": "string",
+                "enum": ["pane", "file"],
+                "description": (
+                    "'pane' (default) plays it in the ClearVoice pane and keeps it in memory. "
+                    "'file' writes one WAV into the plugin's data directory and returns its path, for a "
+                    "video, a podcast or another pipeline — refused unless the user enabled 'Allow speech "
+                    "files' in ClearVoice settings."
+                ),
+            },
         },
         "required": ["text"],
+    },
+}
+
+CLEARVOICE_TRANSCRIBE = {
+    "name": "clearvoice_transcribe",
+    "description": (
+        "Transcribe one audio file on this machine with the local speech recogniser (no cloud, no "
+        "upload) and return the text, plus ClearVoice's cleaned-up sentence when asked. Use it for "
+        "dictation, voice notes, meeting snippets, subtitle drafting, or as the first half of a "
+        "voice → text → action pipeline. Accepts a path to a WAV/WebM/Opus/MP3 file the user named "
+        "explicitly; read-only, and it writes nothing. Language defaults to the plugin setting; pass "
+        "'fr', 'en', 'ja', … to override for one call. The audio is never copied, cached or stored."
+    ),
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "audio_path": {
+                "type": "string",
+                "description": "Absolute path to the audio file to transcribe (WAV, WebM/Opus, OGG, MP3).",
+            },
+            "language": {
+                "type": "string",
+                "description": "Optional language code for this call (en, fr, de, es, pt, ja, zh, ko, th, hi, …).",
+            },
+            "reframe": {
+                "type": "boolean",
+                "description": "true = also return ClearVoice's rewritten clear sentence. Default false (raw transcript).",
+            },
+        },
+        "required": ["audio_path"],
+    },
+}
+
+CLEARVOICE_SAY_BACK = {
+    "name": "clearvoice_say_back",
+    "description": (
+        "The ClearVoice round trip on a file: listen to an audio clip, work out the clear sentence, and "
+        "speak it back — 'say it again, but understood'. Use it to repeat an unclear recording, to read "
+        "an impaired-speech voice note aloud, or as listen → clarify → speak inside a bigger pipeline. "
+        "Same approval rule as clearvoice_speak: with confirm_required=true (default) it returns the "
+        "transcript and the proposed sentence WITHOUT speaking, so the user can approve or edit it; only "
+        "confirm_required=false voices it. On-device by default; writes nothing."
+    ),
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "audio_path": {
+                "type": "string",
+                "description": "Absolute path to the audio file to listen to.",
+            },
+            "language": {
+                "type": "string",
+                "description": "Optional language code for this call.",
+            },
+            "voice_profile": {
+                "type": "string",
+                "description": "Optional voice name to speak with.",
+            },
+            "confirm_required": {
+                "type": "boolean",
+                "description": "true (default) = propose only, do not speak. false = speak the proposal.",
+            },
+        },
+        "required": ["audio_path"],
     },
 }
 
@@ -178,6 +254,30 @@ def clearvoice_speak(args: dict, **kwargs) -> str:
             "backend": result.backend,
             "duration_s": round(result.duration_s, 2),
         })
+
+        deliver = str((args or {}).get("deliver") or "pane").strip().lower()
+        file_payload: dict = {}
+        if deliver == "file":
+            if not settings.allow_speech_files:
+                return _error(
+                    "Writing speech to a file is off. Turn on 'Allow speech files' in "
+                    "Settings > Plugins > ClearVoice, then call again with deliver='file'.",
+                    spoken=True,
+                    delivered_to="clearvoice pane (in memory)",
+                )
+            try:
+                folder = runtime.data_dir() / "speech"
+                folder.mkdir(parents=True, exist_ok=True)
+                target = folder / f"clearvoice-{int(time.time())}.wav"
+                target.write_bytes(result.wav)
+                file_payload = {
+                    "file": str(target),
+                    "media": f"MEDIA:{target}",
+                    "note": "Generated speech written on request; it stays in the plugin data folder until you delete it.",
+                }
+            except OSError as exc:
+                return _error(f"Could not write the speech file: {exc}", spoken=True)
+
         return json.dumps(
             {
                 "spoken": True,
@@ -186,7 +286,8 @@ def clearvoice_speak(args: dict, **kwargs) -> str:
                 "voice": result.voice,
                 "duration_s": round(result.duration_s, 2),
                 "delivered_to": "clearvoice pane (in memory)",
-                "saved": False,
+                "saved": bool(file_payload),
+                **file_payload,
                 "note": (
                     "Playback happens in the ClearVoice pane. If the pane is closed the audio is "
                     "dropped after 120 s and nothing is written to disk."
@@ -197,6 +298,143 @@ def clearvoice_speak(args: dict, **kwargs) -> str:
     except Exception as exc:  # never let a raise eat the tool call
         logger.warning("clearvoice_speak failed: %s", exc)
         return _error(f"ClearVoice could not speak that: {exc}")
+
+
+def _read_audio_file(path_value: str) -> bytes:
+    """Read an audio file the user named. Read-only; nothing is copied anywhere."""
+    path = Path(str(path_value or "")).expanduser()
+    if not str(path_value or "").strip():
+        raise ValueError("No audio_path given.")
+    if not path.is_absolute():
+        raise ValueError("audio_path must be absolute (e.g. /home/you/note.webm).")
+    if not path.is_file():
+        raise ValueError(f"No file at {path}.")
+    size = path.stat().st_size
+    if size == 0:
+        raise ValueError(f"{path.name} is empty.")
+    if size > MAX_AUDIO_FILE_BYTES:
+        raise ValueError(f"{path.name} is larger than {MAX_AUDIO_FILE_BYTES // (1024 * 1024)} MB.")
+    return path.read_bytes()
+
+
+def clearvoice_transcribe(args, **kwargs) -> str:
+    """Audio file in, text out. Nothing is written, nothing is uploaded."""
+    try:
+        ctx = kwargs.get("_ctx")
+        settings = _read_settings(ctx) if ctx is not None else _fallback_settings()
+        language = str((args or {}).get("language") or "").strip()
+        if language:
+            from clearvoice_engine.settings import Settings
+
+            settings = Settings.from_mapping(
+                {
+                    "language": language,
+                    "tts_backend": settings.tts_backend,
+                    "stt_backend": settings.stt_backend,
+                    "whisper_model": settings.whisper_model,
+                    "allow_cloud": settings.allow_cloud,
+                },
+                has_key=settings.has_gradium_key,
+            )
+        clip = _read_audio_file((args or {}).get("audio_path", ""))
+
+        from clearvoice_engine import intent, stt
+
+        try:
+            result = stt.transcribe(clip, settings, get_key=lambda: _get_secret(GRADIUM_KEY_ENV))
+        except Exception as exc:
+            return _error(str(exc) or "Transcription failed.")
+
+        payload = {
+            "transcript": result.text,
+            "language": result.language,
+            "model": result.model,
+            "backend": result.backend,
+            "duration_s": round(result.duration_s, 2),
+            "saved": False,
+        }
+        if (args or {}).get("reframe"):
+            payload["proposal"] = intent.reframe(result.text, settings.rewrite_style).public()
+        return json.dumps(payload, ensure_ascii=False)
+    except Exception as exc:
+        logger.warning("clearvoice_transcribe failed: %s", exc)
+        return _error(f"ClearVoice could not transcribe that: {exc}")
+
+
+def clearvoice_say_back(args, **kwargs) -> str:
+    """Listen to a clip, propose the clear sentence, and speak it on approval."""
+    try:
+        ctx = kwargs.get("_ctx")
+        settings = _read_settings(ctx) if ctx is not None else _fallback_settings()
+        language = str((args or {}).get("language") or "").strip()
+        if language:
+            settings = settings.__class__.from_mapping(
+                {
+                    "language": language,
+                    "tts_backend": settings.tts_backend,
+                    "stt_backend": settings.stt_backend,
+                    "whisper_model": settings.whisper_model,
+                    "voice": settings.voice,
+                    "rewrite_style": settings.rewrite_style,
+                    "allow_cloud": settings.allow_cloud,
+                },
+                has_key=settings.has_gradium_key,
+            )
+        clip = _read_audio_file((args or {}).get("audio_path", ""))
+
+        from clearvoice_engine import intent, stt
+
+        try:
+            result = stt.transcribe(clip, settings, get_key=lambda: _get_secret(GRADIUM_KEY_ENV))
+        except Exception as exc:
+            return _error(str(exc) or "Transcription failed.")
+
+        proposal = intent.reframe(result.text, settings.rewrite_style)
+        confirmed = (args or {}).get("confirm_required", True) is False
+        if not confirmed:
+            return json.dumps(
+                {
+                    "spoken": False,
+                    "needs_confirmation": True,
+                    "transcript": result.text,
+                    "text": proposal.message,
+                    "confidence": proposal.confidence,
+                    "candidates": proposal.candidates,
+                    "instruction": "Show the transcript and this sentence to the user, then ask whether to speak it.",
+                    "then": "call clearvoice_say_back again with confirm_required=false once the user accepts it",
+                },
+                ensure_ascii=False,
+            )
+
+        from clearvoice_engine import runtime, tts
+
+        try:
+            spoken = tts.synthesize(
+                proposal.message,
+                settings,
+                voice=(args or {}).get("voice_profile") or None,
+                get_key=lambda: _get_secret(GRADIUM_KEY_ENV),
+            )
+        except Exception as exc:
+            return _error(str(exc) or "The voice could not speak that sentence.", transcript=result.text)
+
+        runtime.outbox.put(spoken.wav, proposal.message, spoken.backend)
+        _broadcast("speak", {"text": proposal.message, "backend": spoken.backend})
+        return json.dumps(
+            {
+                "spoken": True,
+                "transcript": result.text,
+                "text": proposal.message,
+                "backend": spoken.backend,
+                "duration_s": round(spoken.duration_s, 2),
+                "delivered_to": "clearvoice pane (in memory)",
+                "saved": False,
+            },
+            ensure_ascii=False,
+        )
+    except Exception as exc:
+        logger.warning("clearvoice_say_back failed: %s", exc)
+        return _error(f"ClearVoice could not do that: {exc}")
 
 
 def _fallback_settings():
@@ -249,17 +487,35 @@ def _handle_command(raw_args: str, *, ctx=None, **kwargs) -> str:
 
 
 def register(ctx) -> None:
-    """Wire the tool and slash command. Imports stay lazy (see plugin docs)."""
+    """Wire the tools, the slash command and the bundled skill."""
     generator = clearvoice_speak
 
-    def handler(args: dict, **kwargs) -> str:
+    def speak_handler(args: dict, **kwargs) -> str:
         return generator(args, _ctx=ctx, **kwargs)
+
+    def transcribe_handler(args: dict, **kwargs) -> str:
+        return clearvoice_transcribe(args, _ctx=ctx, **kwargs)
+
+    def say_back_handler(args: dict, **kwargs) -> str:
+        return clearvoice_say_back(args, _ctx=ctx, **kwargs)
 
     ctx.register_tool(
         name="clearvoice_speak",
         toolset="clearvoice",
         schema=CLEARVOICE_SPEAK,
-        handler=handler,
+        handler=speak_handler,
+    )
+    ctx.register_tool(
+        name="clearvoice_transcribe",
+        toolset="clearvoice",
+        schema=CLEARVOICE_TRANSCRIBE,
+        handler=transcribe_handler,
+    )
+    ctx.register_tool(
+        name="clearvoice_say_back",
+        toolset="clearvoice",
+        schema=CLEARVOICE_SAY_BACK,
+        handler=say_back_handler,
     )
 
     ctx.register_command(
@@ -267,3 +523,17 @@ def register(ctx) -> None:
         lambda raw: _handle_command(raw, ctx=ctx),
         description="Open the ClearVoice push-to-talk pane",
     )
+
+    skill_dir = Path(_ROOT) / "skills" / "clearvoice"
+    skill_md = skill_dir / "SKILL.md"
+    if skill_md.is_file():
+        try:
+            ctx.register_skill(
+                "clearvoice",
+                skill_md,
+                description="Use ClearVoice for local speech: transcribe audio, speak text, or play back a clip clearly.",
+            )
+        except TypeError:  # older ctx without the description kwarg
+            ctx.register_skill("clearvoice", skill_md)
+        except Exception as exc:  # never fail the plugin over a bundled skill
+            logger.warning("clearvoice: bundled skill not registered: %s", exc)

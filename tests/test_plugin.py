@@ -13,7 +13,7 @@ import pytest
 
 from clearvoice_engine import runtime, tts
 
-SCHEMA_KEYS = {"text", "voice_profile", "backend", "confirm_required"}
+SCHEMA_KEYS = {"text", "voice_profile", "backend", "confirm_required", "deliver"}
 
 
 def _register(plugin, ctx):
@@ -21,15 +21,19 @@ def _register(plugin, ctx):
     return ctx
 
 
-def test_register_exposes_exactly_one_tool_and_one_command(plugin, fake_ctx):
+def test_register_exposes_three_tools_and_one_command(plugin, fake_ctx):
     ctx = _register(plugin, fake_ctx)
-    assert set(ctx.tools) == {"clearvoice_speak"}
+    assert set(ctx.tools) == {"clearvoice_speak", "clearvoice_transcribe", "clearvoice_say_back"}
     assert set(ctx.commands) == {"clearvoice"}
     assert ctx.hooks == []
     schema, _handler = ctx.tools["clearvoice_speak"]
     assert schema["name"] == "clearvoice_speak"
     assert set(schema["parameters"]["properties"]) == SCHEMA_KEYS
     assert "on-device" in schema["description"]
+    transcribe_schema, _ = ctx.tools["clearvoice_transcribe"]
+    assert transcribe_schema["parameters"]["required"] == ["audio_path"]
+    say_back_schema, _ = ctx.tools["clearvoice_say_back"]
+    assert say_back_schema["parameters"]["required"] == ["audio_path"]
 
 
 def test_tool_refuses_to_speak_without_confirmation(plugin, fake_ctx):
