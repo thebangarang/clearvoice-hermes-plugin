@@ -14,7 +14,7 @@ customer security team should be able to check against the code.
 | Subprocess | **One** | `ffmpeg` with a constant argv, audio on stdin, PCM on stdout. No shell, no filename, no interpolation of any external string. |
 | Filesystem reads | **Two kinds** | `phrases.json` in the plugin's own data directory, and the voice/model files inside that same directory (plus Hugging Face's own cache for recognisers). No other path is read. |
 | Filesystem writes | **Its own data directory only** | `phrases.json` (explicit save only) and downloaded voice models under `models/piper/`, written to a `.part` sibling and renamed atomically. |
-| Outbound network | **Two hosts, opt-in** | `huggingface.co` for one-time model downloads; `api.gradium.ai` only when cloud speech is enabled *and* selected *and* a key is present. |
+| Outbound network | **Three hosts, all weight downloads or opt-in** | `huggingface.co` (models/voices), `github.com/r9y9/open_jtalk` (the Japanese dictionary, only if that extra is installed), `api.gradium.ai` only when cloud speech is enabled *and* selected *and* a key is present. |
 | Credentials | **Read-only, scoped** | `CLEARVOICE_GRADIUM_API_KEY` through `agent.secret_scope.get_secret`. Never logged, never echoed, never stored, never displayed. |
 | Hermes core modification | **None** | Only public `ctx.register_tool` / `register_command`. `hermes plugins validate` "no core override" passes. |
 | Privileged capabilities | **None requested** | No `tools.override`, no `llm.*`, no platform actions. The manifest declares no `capabilities:` block at all. |
@@ -98,8 +98,12 @@ separately installed dependency, never vendored into this MIT repository, and th
 disclosure is here because a downstream redistributor needs it. Piper voice
 models are downloaded per language from `rhasspy/piper-voices` and carry their
 own per-voice licence (CC BY 4.0, MIT, …); the plugin ships only the index, not
-the weights. `faster-whisper` runs `ctranslate2` locally. None of them opens a
-listening socket during normal use, and model fetches are HTTPS.
+the weights. Optional phonemizers extend that chain and are never installed
+implicitly: `pyopenjtalk` (Japanese, wraps Open JTalk — modified BSD — and
+downloads its dictionary from a GitHub release on first use) and `tltk` (Thai,
+whose published metadata omits `pandas`, `requests` and `unicode-rbnf`).
+`faster-whisper` runs `ctranslate2` locally. None of them opens a listening
+socket during normal use, and every download is HTTPS.
 
 ## 7. Verifiable claims
 

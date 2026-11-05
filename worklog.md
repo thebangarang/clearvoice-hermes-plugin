@@ -53,15 +53,18 @@ it  piper  it_IT-paola-medium      2.23s            OK
 ar  piper  ar_JO-kareem-medium     3.48s            OK
 pt / ru / pl / tr / nl                              OK
 th  piper  th_TH-tsync2-medium     3.02s            OK after installing tltk's undeclared deps
-ja  piper  ja_JP-hi_fi_captain-medium               FAILED: pyopenjtalk has no wheel
+ja  piper  ja_JP-hi_fi_captain-medium 2.94s         OK once pyopenjtalk had cmake to build with
 ```
 
-Japanese is the one genuine gap: Piper's Japanese voice phonemises with
-`pyopenjtalk`, which ships no prebuilt wheel, so it needs a C++ toolchain.
-Rather than leave a cryptic "the voice failed", the error now names the package
-and the command, the language is flagged `ready: false`, and the pane prints the
-hint. Thai had the same shape of problem (tltk's metadata omits pandas/requests/
-unicode-rbnf) and is fixed by one documented install line.
+Japanese is the one that needed a build: Piper's Japanese voice phonemises with
+`pyopenjtalk`, which ships no wheel, so it needs `cmake` + a C++ compiler. It was
+then measured at **0.51 s warm** for 2.87 s of audio. The first run also fetches
+the Open JTalk dictionary (~23 MB) from a GitHub release — disclosed in PRIVACY.
+Rather than leave a cryptic "the voice failed", a missing phonemizer is now
+mapped to the exact install line, each language reports `ready: true/false`, and
+the pane prints the hint before you record. Thai had the same shape of problem
+(tltk's metadata omits pandas/requests/unicode-rbnf) and is fixed by one
+documented install line.
 
 **Open:** `hermes gateway restart` again (the dependency set changed, so the
 running gateway is stale a second time), then record the multilingual demo.

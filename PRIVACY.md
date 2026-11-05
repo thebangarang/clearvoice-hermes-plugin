@@ -60,6 +60,7 @@ traffic is the one-time model download the first time each model is used:
 | First transcription ever | A model download request (no audio, no text) | Hugging Face (`huggingface.co`) via faster-whisper |
 | First synthesis ever, English | A model download request (no audio, no text) | Hugging Face (`huggingface.co`) via ptts |
 | First synthesis in another language | A voice-model download (no audio, no text) | Hugging Face (`huggingface.co`) via Piper |
+| First Japanese synthesis (optional extra) | The Open JTalk dictionary (no audio, no text) | GitHub releases (`github.com/r9y9/open_jtalk`) via pyopenjtalk |
 | Choosing a different voice | That voice's model or embedding (no audio, no text) | Hugging Face (`huggingface.co`) |
 
 After that, unplug the network and ClearVoice keeps working.

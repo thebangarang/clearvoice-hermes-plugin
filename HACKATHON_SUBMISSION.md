@@ -276,7 +276,7 @@ to the catalog before validation passes; it passes.
 | STT works on ≥ 1 backend | ✅ local faster-whisper, verified end to end |
 | Intent clarification works | ✅ rules, confidence, candidates, forced confirmation on consequential words |
 | Phonon local TTS works | ✅ Apache-2.0 31m on CPU, verified end to end |
-| Multilingual works | ✅ 16 of 17 languages voice out of the box (verified by real synthesis); Japanese needs `pyopenjtalk` (no wheel), Thai needs one documented install line — both flagged in the pane |
+| Multilingual works | ✅ all 17 languages voice a sentence — verified by real synthesis, including Japanese (0.51 s warm) and Thai |
 | Voice picker works | ✅ 37 English Phonon voices + 108 Piper voices, indexed offline |
 | Gradium backend implemented, off by default | ✅ triple-gated (switch + backend + key), refuses before any socket |
 | No audio/transcript persisted | ✅ audit-hook test |
