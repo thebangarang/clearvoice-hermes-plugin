@@ -78,7 +78,7 @@ def _settings(overrides: dict[str, Any] | None = None) -> Settings:
     # the saved settings for that one request. The pane persists its own choice in
     # ctx.storage, so the plugin never writes config.yaml.
     if overrides:
-        for key in ("language", "voice", "rewrite_style", "stt_backend", "tts_backend", "whisper_model"):
+        for key in ("language", "voice", "rewrite_style", "stt_backend", "tts_backend", "whisper_model", "phrases_dir"):
             value = overrides.get(key)
             if isinstance(value, str) and value.strip():
                 mapping = {**mapping, key: value.strip()}
@@ -106,6 +106,9 @@ async def status() -> dict[str, Any]:
     payload = settings.status()
     payload.update(_local_state(settings))
     payload.update(runtime.status_payload())
+    folder = settings.phrases_folder()
+    payload["phrases_folder"] = str(folder if folder is not None else runtime.data_dir())
+    payload["phrases_folder_custom"] = folder is not None
     return payload
 
 
@@ -249,9 +252,17 @@ async def clear_session() -> dict[str, Any]:
     return {"cleared": dropped, "retention": "Session only", "message": "Session cleared. Nothing was saved."}
 
 
+def _phrases(overrides: dict[str, Any] | None = None):
+    """The saved-phrase store for the current settings (user folder or data dir)."""
+    settings = _settings(overrides)
+    folder = settings.phrases_folder()
+    return runtime.phrases(folder if folder is not None else runtime.data_dir())
+
+
 @router.get("/phrases")
-async def list_phrases() -> dict[str, Any]:
-    return {"phrases": [p.public() for p in runtime.phrases().list()]}
+async def list_phrases(phrases_dir: str | None = None) -> dict[str, Any]:
+    store = _phrases({"phrases_dir": phrases_dir} if phrases_dir else None)
+    return {"phrases": [p.public() for p in store.list()], "folder": str(store.path.parent)}
 
 
 @router.post("/phrases")
@@ -259,13 +270,19 @@ async def save_phrase(payload: dict[str, Any]) -> dict[str, Any]:
     body = payload or {}
     if not body.get("explicit", False):
         raise HTTPException(status_code=409, detail="Saving a phrase needs an explicit Save phrase action.")
+    store = _phrases(body)
     try:
-        phrase = runtime.phrases().save_phrase(str(body.get("text") or ""), str(body.get("label") or ""))
+        phrase = store.save_phrase(str(body.get("text") or ""), str(body.get("label") or ""))
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from None
-    return {"phrase": phrase.public(), "saved_to": "plugin data directory"}
+    except OSError as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Could not write to {store.path.parent}. Check the folder in Settings > Plugins > ClearVoice.",
+        ) from exc
+    return {"phrase": phrase.public(), "saved_to": str(store.path)}
 
 
 @router.delete("/phrases/{phrase_id}")
-async def delete_phrase(phrase_id: str) -> dict[str, Any]:
-    return {"deleted": runtime.phrases().delete(phrase_id)}
+async def delete_phrase(phrase_id: str, phrases_dir: str | None = None) -> dict[str, Any]:
+    return {"deleted": _phrases({"phrases_dir": phrases_dir} if phrases_dir else None).delete(phrase_id)}

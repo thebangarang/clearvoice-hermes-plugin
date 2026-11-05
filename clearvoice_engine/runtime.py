@@ -66,6 +66,7 @@ class AudioOutbox:
 outbox = AudioOutbox()
 
 _phrases: SavedPhrases | None = None
+_phrases_dir: Path | None = None
 
 
 def data_dir() -> Path:
@@ -82,10 +83,13 @@ def data_dir() -> Path:
     return Path(plugin_data_dir("clearvoice"))
 
 
-def phrases() -> SavedPhrases:
-    global _phrases
-    if _phrases is None:
-        _phrases = SavedPhrases(data_dir())
+def phrases(directory: Path | str | None = None) -> SavedPhrases:
+    """The saved-phrase store. A user-chosen folder wins over the data dir."""
+    global _phrases, _phrases_dir
+    target = Path(directory) if directory is not None else data_dir()
+    if _phrases is None or _phrases_dir != target:
+        _phrases = SavedPhrases(target)
+        _phrases_dir = target
     return _phrases
 
 
@@ -103,5 +107,4 @@ def status_payload() -> dict[str, Any]:
         "session_utterances": len(session),
         "last_message": last.message if last else "",
         "pending_for_pane": bool(pending),
-        "saved_phrases": len(phrases().list()),
     }

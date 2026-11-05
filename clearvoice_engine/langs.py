@@ -113,13 +113,22 @@ def _load_index() -> dict:
 
 
 def piper_voices(language_code: str | None = None) -> list[dict]:
-    """Every Piper voice for a language (or every voice, when no language is given)."""
+    """Every Piper voice for a language (or every voice, when no language is given).
+
+    Best first: the language's default voice, then higher quality before lower,
+    so the picker does not open on a `low` model.
+    """
     index = _load_index()
     voices = index.get("voices", [])
     if not language_code:
         return list(voices)
-    family = get(language_code).code
-    return [v for v in voices if v.get("family") == family]
+    language = get(language_code)
+    rank = {"high": 3, "medium": 2, "low": 1, "x_low": 0}
+    family = [v for v in voices if v.get("family") == language.code]
+    return sorted(
+        family,
+        key=lambda v: (v.get("key") != language.default_voice, -rank.get(v.get("quality", ""), 0)),
+    )
 
 
 def piper_voice(key: str) -> dict | None:

@@ -125,7 +125,11 @@ def voices_for(language_code: str) -> list[dict]:
     """Every voice available for a language, on-device first."""
     language = langs.get(language_code)
     if language.code == "en" and phonon_available():
-        return phonon_voices()
+        # The catalog lists voices for several languages; Phonon 31m is the
+        # English checkpoint, so offer only the ones that belong to it.
+        english = [v for v in phonon_voices() if v.get("language") in (None, "", "en")]
+        if english:
+            return english
     return piper.voices(language.code)
 
 

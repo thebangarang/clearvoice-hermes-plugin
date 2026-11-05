@@ -17,6 +17,7 @@
  */
 
 import { haptic, host } from '@hermes/plugin-sdk'
+import * as sdk from '@hermes/plugin-sdk'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { jsx, jsxs } from 'react/jsx-runtime'
 
@@ -28,6 +29,8 @@ let REST = null
 
 // Plugin-scoped persistence (ctx.storage) — the pane's own choices, not config.
 let STORAGE = null
+let OS = null
+let FILES = null
 
 function readPref(key, fallback) {
   try {
@@ -358,19 +361,62 @@ const REWRITE_LABELS = {
   verbatim: 'Verbatim'
 }
 
-function selectStyle() {
+// A native <select> painted with a transparent background renders its option
+// popup with no surface of its own on Linux — the labels become unreadable
+// until a row is hovered. Use the app's own Select when the SDK exposes it, and
+// fall back to a native control painted with the OS *system* colours
+// (Canvas/CanvasText), which are opaque in both themes.
+const HAS_SDK_SELECT = Boolean(sdk.Select && sdk.SelectTrigger && sdk.SelectContent && sdk.SelectItem)
+
+function nativeSelectStyle(extra) {
   return {
     minHeight: '44px',
     width: '100%',
     borderRadius: '10px',
     border: `1px solid ${C.border}`,
-    background: 'transparent',
-    color: C.text,
+    background: 'Canvas',
+    color: 'CanvasText',
+    colorScheme: 'light dark',
     fontSize: '1rem',
     padding: '6px 8px',
     fontFamily: 'inherit',
-    cursor: 'pointer'
+    cursor: 'pointer',
+    ...extra
   }
+}
+
+function Picker({ label, value, options, onChange, disabled, style }) {
+  const items = options || []
+  if (HAS_SDK_SELECT) {
+    return jsxs(sdk.Select, {
+      value: value || '',
+      onValueChange: onChange,
+      disabled: Boolean(disabled),
+      children: [
+        jsx(sdk.SelectTrigger, {
+          'aria-label': label,
+          className: 'w-full',
+          style,
+          children: jsx(sdk.SelectValue, { placeholder: label })
+        }),
+        jsx(sdk.SelectContent, {
+          children: items.map(item =>
+            jsx(sdk.SelectItem, { value: item.value, children: item.label }, item.value)
+          )
+        })
+      ]
+    })
+  }
+  return jsx('select', {
+    'aria-label': label,
+    value: value || '',
+    disabled,
+    onChange: event => onChange(event.target.value),
+    style: nativeSelectStyle(style),
+    children: items.length
+      ? items.map(item => jsx('option', { value: item.value, children: item.label }, item.value))
+      : [jsx('option', { value: '', children: 'Default' })]
+  })
 }
 
 function LanguageRow({
@@ -386,15 +432,14 @@ function LanguageRow({
 }) {
   const current = (languages || []).find(entry => entry.code === language)
   const needsExtra = current && current.ready === false && current.extra
-  const languageOptions = Object.entries(LANG_LABELS).map(([code, label]) =>
-    jsx('option', { value: code, children: label }, code)
-  )
+  const languageOptions = Object.entries(LANG_LABELS).map(([code, label]) => ({ value: code, label }))
   const voiceOptions = (voices || []).map(entry => {
     const value = entry.voice || entry.key
-    const label = entry.label || entry.name || value
-    const extra = entry.engine === 'phonon' ? '' : entry.quality ? ` · ${entry.quality}` : ''
-    return jsx('option', { value, children: `${label}${extra}` }, value)
+    const base = entry.label || entry.name || value
+    const suffix = entry.engine === 'phonon' ? '' : entry.quality ? ` · ${entry.quality}` : ''
+    return { value, label: `${base}${suffix}` }
   })
+  const rewriteOptions = Object.entries(REWRITE_LABELS).map(([code, label]) => ({ value: code, label }))
 
   return jsxs('div', {
     style: { display: 'flex', flexDirection: 'column', gap: '6px' },
@@ -406,13 +451,12 @@ function LanguageRow({
             style: { flex: '1 1 45%', display: 'flex', flexDirection: 'column', gap: '3px' },
             children: [
               jsx('span', { style: { fontSize: '0.8125rem', color: C.faint }, children: 'Language' }),
-              jsx('select', {
-                'aria-label': 'Language',
+              jsx(Picker, {
+                label: 'Language',
                 value: language,
-                disabled: busy,
-                onChange: event => onLanguage(event.target.value),
-                style: selectStyle(),
-                children: languageOptions
+                options: languageOptions,
+                onChange: onLanguage,
+                disabled: busy
               })
             ]
           }),
@@ -420,13 +464,12 @@ function LanguageRow({
             style: { flex: '1 1 45%', display: 'flex', flexDirection: 'column', gap: '3px' },
             children: [
               jsx('span', { style: { fontSize: '0.8125rem', color: C.faint }, children: 'Voice' }),
-              jsx('select', {
-                'aria-label': 'Voice',
+              jsx(Picker, {
+                label: 'Voice',
                 value: voice,
-                disabled: busy || !voiceOptions.length,
-                onChange: event => onVoice(event.target.value),
-                style: selectStyle(),
-                children: voiceOptions.length ? voiceOptions : [jsx('option', { value: '', children: 'Default' })]
+                options: voiceOptions,
+                onChange: onVoice,
+                disabled: busy || !voiceOptions.length
               })
             ]
           })
@@ -436,15 +479,13 @@ function LanguageRow({
         style: { display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.8125rem', color: C.faint },
         children: [
           jsx('span', { children: 'Rewrite' }),
-          jsx('select', {
-            'aria-label': 'Rewrite style',
+          jsx(Picker, {
+            label: 'Rewrite style',
             value: rewriteStyle,
+            options: rewriteOptions,
+            onChange: onRewrite,
             disabled: busy,
-            onChange: event => onRewrite(event.target.value),
-            style: { ...selectStyle(), width: 'auto', minHeight: '36px', fontSize: '0.875rem' },
-            children: Object.entries(REWRITE_LABELS).map(([code, label]) =>
-              jsx('option', { value: code, children: label }, code)
-            )
+            style: { width: 'auto', minWidth: '9rem', minHeight: '36px', fontSize: '0.875rem' }
           })
         ]
       }),
@@ -462,7 +503,7 @@ function LanguageRow({
 // MyPhrases — explicit save only.
 // ---------------------------------------------------------------------------
 
-function MyPhrases({ phrases, onUse, onDelete, onSave, canSave, saving }) {
+function MyPhrases({ phrases, folder, customFolder, onUse, onDelete, onSave, onChooseFolder, onReveal, canSave, saving, choosing }) {
   return jsxs('section', {
     'aria-label': 'My phrases',
     style: { display: 'flex', flexDirection: 'column', gap: '8px' },
@@ -485,6 +526,45 @@ function MyPhrases({ phrases, onUse, onDelete, onSave, canSave, saving }) {
               cursor: canSave ? 'pointer' : 'not-allowed'
             },
             children: saving ? 'Saving\u2026' : 'Save phrase'
+          })
+        ]
+      }),
+      jsxs('div', {
+        style: { display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', fontSize: '0.75rem', color: C.faint },
+        children: [
+          jsx('span', {
+            title: folder || '',
+            style: { flex: '1 1 100%', wordBreak: 'break-all', lineHeight: 1.35 },
+            children: `Folder: ${folder || 'plugin data directory'}${customFolder ? '' : ' (default)'}`
+          }),
+          jsx('button', {
+            type: 'button',
+            onClick: onChooseFolder,
+            disabled: choosing,
+            style: {
+              border: `1px solid ${C.border}`,
+              background: 'transparent',
+              color: C.text,
+              borderRadius: '8px',
+              padding: '4px 9px',
+              fontSize: '0.75rem',
+              cursor: 'pointer'
+            },
+            children: choosing ? 'Choosing\u2026' : 'Choose folder\u2026'
+          }),
+          jsx('button', {
+            type: 'button',
+            onClick: onReveal,
+            style: {
+              border: `1px solid ${C.border}`,
+              background: 'transparent',
+              color: C.dim,
+              borderRadius: '8px',
+              padding: '4px 9px',
+              fontSize: '0.75rem',
+              cursor: 'pointer'
+            },
+            children: 'Open folder'
           })
         ]
       }),
@@ -561,6 +641,9 @@ function ClearVoice({ compact }) {
   const [voice, setVoice] = useState('')
   const [voices, setVoices] = useState([])
   const [rewriteStyle, setRewriteStyle] = useState('courteous')
+  const [phrasesFolder, setPhrasesFolder] = useState('')
+  const [phrasesFolderCustom, setPhrasesFolderCustom] = useState(false)
+  const [choosingFolder, setChoosingFolder] = useState(false)
 
   const recorderRef = useRef(null)
   const streamRef = useRef(null)
@@ -581,8 +664,15 @@ function ClearVoice({ compact }) {
   const refreshPhrases = useCallback(async () => {
     if (!REST) return
     try {
-      const data = await REST('/phrases', { method: 'GET' })
-      if (mounted.current) setPhrases((data && data.phrases) || [])
+      const dir = readPref('phrasesDir', '')
+      const query = dir ? `?phrases_dir=${encodeURIComponent(dir)}` : ''
+      const data = await REST(`/phrases${query}`, { method: 'GET' })
+      if (!mounted.current) return
+      setPhrases((data && data.phrases) || [])
+      if (data && data.folder) {
+        setPhrasesFolder(data.folder)
+        setPhrasesFolderCustom(Boolean(dir))
+      }
     } catch (err) {
       /* ignore */
     }
@@ -793,7 +883,8 @@ function ClearVoice({ compact }) {
     if (!text) return
     setSaving(true)
     try {
-      await REST('/phrases', { method: 'POST', body: { text, explicit: true } })
+      const dir = readPref('phrasesDir', '')
+      await REST('/phrases', { method: 'POST', body: { text, explicit: true, phrases_dir: dir } })
       await refreshPhrases()
     } catch (err) {
       setError(restErrorText(err))
@@ -801,10 +892,35 @@ function ClearVoice({ compact }) {
     setSaving(false)
   }, [draft, refreshPhrases])
 
+  const choosePhrasesFolder = useCallback(async () => {
+    if (!FILES || typeof FILES.requestFolder !== 'function') {
+      setError('This build of the Desktop app cannot open a folder picker. Set "Saved phrases folder" in Settings > Plugins > ClearVoice instead.')
+      return
+    }
+    setChoosingFolder(true)
+    try {
+      const picked = await FILES.requestFolder()
+      if (picked && picked.ok && picked.folder && picked.folder.path) {
+        writePref('phrasesDir', picked.folder.path)
+        await refreshPhrases()
+      }
+    } catch (err) {
+      setError('The folder picker could not open. Set "Saved phrases folder" in Settings > Plugins > ClearVoice instead.')
+    }
+    setChoosingFolder(false)
+  }, [refreshPhrases])
+
+  const revealPhrasesFolder = useCallback(() => {
+    if (!OS || typeof OS.revealPath !== 'function' || !phrasesFolder) return
+    void OS.revealPath(phrasesFolder)
+  }, [phrasesFolder])
+
   const deletePhrase = useCallback(
     async phrase => {
       try {
-        await REST(`/phrases/${phrase.id}`, { method: 'DELETE' })
+        const dir = readPref('phrasesDir', '')
+        const query = dir ? `?phrases_dir=${encodeURIComponent(dir)}` : ''
+        await REST(`/phrases/${phrase.id}${query}`, { method: 'DELETE' })
       } catch (err) {
         /* ignore */
       }
@@ -1064,6 +1180,9 @@ function ClearVoice({ compact }) {
 
       jsx(MyPhrases, {
         phrases,
+        folder: phrasesFolder,
+        customFolder: phrasesFolderCustom,
+        choosing: choosingFolder,
         onUse: phrase => {
           setDraft(phrase.text)
           setTranscript('')
@@ -1072,6 +1191,8 @@ function ClearVoice({ compact }) {
         },
         onDelete: phrase => void deletePhrase(phrase),
         onSave: () => void savePhrase(),
+        onChooseFolder: () => void choosePhrasesFolder(),
+        onReveal: revealPhrasesFolder,
         canSave: Boolean(draft.trim()),
         saving
       }),
@@ -1106,6 +1227,8 @@ export default {
   register(ctx) {
     REST = (path, opts) => ctx.rest(path, opts)
     STORAGE = ctx.storage || null
+    OS = ctx.os || null
+    FILES = ctx.files || null
 
     // The pane (compact) and the full page (roomy) render the same component.
     ctx.register({

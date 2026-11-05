@@ -1,5 +1,5 @@
 name: clearvoice
-version: 0.2.0
+version: 0.2.1
 manifest_version: 2
 description: >
   Privacy-first push-to-talk speech-clarity bridge, in 17 languages. You speak
@@ -31,6 +31,11 @@ config_schema:
     default: ""
     label: Voice
     description: "Voice name: a Phonon catalog name for English (e.g. Zoey, Juniper), or a Piper voice key for other languages (e.g. fr_FR-siwis-medium). Empty = that language's default. The pane lists what is available."
+  phrases_dir:
+    type: str
+    default: ""
+    label: Saved phrases folder
+    description: "Absolute path where Save phrase writes phrases.json. Empty = the plugin's own data directory. The folder must already exist; the pane shows which one is in use and can open it."
   rewrite_style:
     type: str
     choices: [courteous, literal, verbatim]

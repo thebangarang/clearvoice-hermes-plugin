@@ -167,3 +167,33 @@ def test_an_unrelated_error_is_not_explained_away():
 
     assert piper._missing_phonemizer(RuntimeError("boom")) is None
     assert piper._missing_phonemizer(ModuleNotFoundError("numpy", name="numpy")) is None
+
+
+# --- voice choices and the saved-phrase folder -----------------------------
+
+
+def test_voice_choices_are_scoped_to_one_language_and_best_first():
+    french = langs.piper_voices("fr")
+    assert french, "French voices missing from the index"
+    assert all(v["family"] == "fr" for v in french)
+    # The default voice opens the picker, then higher quality before lower.
+    assert french[0]["key"] == "fr_FR-siwis-medium"
+    ranks = [{"high": 3, "medium": 2, "low": 1, "x_low": 0}[v["quality"]] for v in french[1:]]
+    assert ranks == sorted(ranks, reverse=True)
+
+
+def test_english_voice_choices_exclude_other_languages():
+    from clearvoice_engine import tts
+
+    if not tts.phonon_available():
+        pytest.skip("ptts not installed")
+    english = tts.voices_for("en")
+    assert english
+    assert all(v.get("language") in (None, "", "en") for v in english)
+
+
+def test_phrases_folder_needs_an_existing_absolute_directory(tmp_path):
+    assert Settings.from_mapping({"phrases_dir": str(tmp_path)}).phrases_folder() == tmp_path
+    assert Settings.from_mapping({"phrases_dir": "relative/dir"}).phrases_folder() is None
+    assert Settings.from_mapping({"phrases_dir": "/no/such/folder/here"}).phrases_folder() is None
+    assert Settings.from_mapping({}).phrases_folder() is None

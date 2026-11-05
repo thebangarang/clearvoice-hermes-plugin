@@ -9,6 +9,7 @@ impossible values coerced to the safe default — never to a cloud backend.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Mapping
 
 from . import langs
@@ -44,6 +45,7 @@ class Settings:
     gradium_voice_id: str = ""
     allow_cloud: bool = False
     has_gradium_key: bool = False
+    phrases_dir: str = ""
 
     @classmethod
     def from_mapping(cls, mapping: Mapping[str, Any] | None, *, has_key: bool = False) -> "Settings":
@@ -59,9 +61,25 @@ class Settings:
             gradium_voice_id=str(data.get("gradium_voice_id") or "").strip(),
             allow_cloud=_as_bool(data.get("allow_cloud"), False),
             has_gradium_key=has_key or _as_bool(data.get("has_gradium_key"), False),
+            phrases_dir=str(data.get("phrases_dir") or "").strip(),
         )
 
     # --- derived state -----------------------------------------------------
+
+    def phrases_folder(self) -> Path | None:
+        """The folder saved phrases go in, when the user chose one.
+
+        Returns ``None`` when unset, relative, missing or not a directory — the
+        caller then falls back to the plugin's own data directory instead of
+        inventing a path.
+        """
+        raw = self.phrases_dir.strip()
+        if not raw:
+            return None
+        candidate = Path(raw).expanduser()
+        if not candidate.is_absolute() or not candidate.is_dir():
+            return None
+        return candidate
 
     @property
     def language_info(self) -> langs.Language:
