@@ -106,7 +106,7 @@ listening socket during normal use, and model fetches are HTTPS.
 ```bash
 hermes plugins validate ~/.hermes/plugins/clearvoice --install-deps   # catalog gate
 hermes plugins doctor   ~/.hermes/plugins/clearvoice                  # real loader
-pytest                                                                # 55 tests
+pytest                                                                # 58 tests
 python scripts/smoke_test.py                                          # real models, in memory
 python scripts/api_selftest.py                                        # every REST route, real audio
 ```

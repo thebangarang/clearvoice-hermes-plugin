@@ -135,3 +135,35 @@ def test_rewrite_style_comes_from_settings():
     settings = Settings.from_mapping({"rewrite_style": "literal"})
     assert settings.rewrite_style == "literal"
     assert Settings.from_mapping({"rewrite_style": "nonsense"}).rewrite_style == "courteous"
+
+
+# --- optional phonemizers --------------------------------------------------
+
+
+def test_readiness_matches_the_installed_phonemizer():
+    import importlib.util
+
+    for code, module in (("ja", "pyopenjtalk"), ("th", "tltk")):
+        installed = importlib.util.find_spec(module) is not None
+        assert langs.get(code).ready is installed, code
+        assert langs.get(code).public()["ready"] is installed
+
+
+def test_a_missing_phonemizer_names_the_package_to_install():
+    from clearvoice_engine import piper
+
+    for module, expected in (
+        ("pyopenjtalk", "pip install pyopenjtalk"),
+        ("tltk", "pip install tltk"),
+        ("unicode_rbnf", "pip install tltk"),
+    ):
+        exc = ModuleNotFoundError(f"No module named '{module}'", name=module)
+        message = piper._missing_phonemizer(exc)
+        assert message and expected in message, module
+
+
+def test_an_unrelated_error_is_not_explained_away():
+    from clearvoice_engine import piper
+
+    assert piper._missing_phonemizer(RuntimeError("boom")) is None
+    assert piper._missing_phonemizer(ModuleNotFoundError("numpy", name="numpy")) is None

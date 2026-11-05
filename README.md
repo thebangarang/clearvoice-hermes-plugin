@@ -148,6 +148,7 @@ ClearVoice speaks and understands **17 languages**, all on-device:
 | **Voice, English** | Phonon 31m (Apache-2.0), **37 catalog voices** — Zoey, Juniper, Everly, Harper, Hadley, Delia … downloaded once per voice |
 | **Voice, other 16** | **Piper** (MIT runtime). 108 voice models in the bundled index: 7 French, 10 German, 9 Spanish, 4 Chinese, 3 Hindi, 3 Vietnamese, and one each for Japanese, Korean and Thai |
 | **Voice picker** | In the pane: pick a language, then any voice for it. The choice is remembered (`ctx.storage`), never written into `config.yaml` |
+| **Out of the box** | 16 of the 17 voice a sentence with no extra install. **Thai** needs `pip install tltk pandas requests unicode-rbnf`; **Japanese** needs `pyopenjtalk`, which has no prebuilt wheel and therefore needs a C++ toolchain. Both are declared as optional extras and the pane says so instead of failing quietly |
 
 Why two engines: Gradium's only permissively-licensed Phonon checkpoint is
 English — the multilingual 40m model is **CC BY-NC**, which a commercial plugin
@@ -325,11 +326,11 @@ nothing lands on disk.
 
 - **17 languages, uneven quality.** English (Phonon) is the best voice here.
   French, German, Spanish, Portuguese, Italian, Dutch, Polish, Russian, Turkish,
-  Arabic, Hindi, Chinese and Vietnamese use Piper `medium` voices and are good
-  for clear speech. Japanese, Korean and Thai have exactly one voice each and are
-  the weakest — intelligible, not premium. Recognition uses multilingual Whisper:
-  `base` by default for non-English, `small` for the scripts Whisper handles
-  worst, both selectable.
+  Arabic, Hindi, Chinese, Korean and Vietnamese use Piper `medium` voices and are
+  good for clear speech. Japanese and Thai need an extra phonemizer package
+  (`pyopenjtalk` / `tltk`) and have one voice each — see the note above.
+  Recognition uses multilingual Whisper: `base` by default for non-English,
+  `small` for the scripts Whisper handles worst, both selectable.
 - **The reframer is not an LLM.** It handles fragmented, telegraphic speech well
   and long meandering sentences poorly. It reorders known slot patterns (verb,
   object, time) rather than understanding arbitrary meaning. When it is unsure it
@@ -383,7 +384,7 @@ nothing lands on disk.
 ```bash
 python -m venv .venv && . .venv/bin/activate
 pip install -e ".[dev]"
-pytest                        # 55 tests, no model download, no network
+pytest                        # 58 tests, no model download, no network
 python scripts/smoke_test.py  # real models, real audio, in memory
 hermes plugins validate . --install-deps
 hermes plugins doctor .

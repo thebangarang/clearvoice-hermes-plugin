@@ -378,11 +378,14 @@ function LanguageRow({
   voice,
   voices,
   rewriteStyle,
+  languages,
   onLanguage,
   onVoice,
   onRewrite,
   busy
 }) {
+  const current = (languages || []).find(entry => entry.code === language)
+  const needsExtra = current && current.ready === false && current.extra
   const languageOptions = Object.entries(LANG_LABELS).map(([code, label]) =>
     jsx('option', { value: code, children: label }, code)
   )
@@ -444,7 +447,13 @@ function LanguageRow({
             )
           })
         ]
-      })
+      }),
+      needsExtra
+        ? jsx('div', {
+            style: { fontSize: '0.8125rem', color: C.danger, lineHeight: 1.35 },
+            children: `This language's voice needs an extra package: ${current.extra}. Recognition still works; speaking it does not until that is installed.`
+          })
+        : null
     ]
   })
 }
@@ -882,6 +891,7 @@ function ClearVoice({ compact }) {
         voice,
         voices,
         rewriteStyle,
+        languages: (status && status.languages) || [],
         busy: listening || busy,
         onLanguage: code => {
           setLanguage(code)

@@ -36,9 +36,32 @@ architectural):**
 - 17 new tests (`tests/test_languages.py`), README/PRIVACY/SECURITY/SUBMISSION
   updated, version 0.2.0.
 
-**Verified:** 55 tests pass; `validate --install-deps` passes (now 4 deps);
-`doctor` reports `1 tool(s), 0 hook(s)`; all 17 Piper voices downloaded and
-measured (see `scripts/lang_probe.py`).
+**Verified:** 58 tests pass; `validate --install-deps` passes; `doctor` reports
+`1 tool(s), 0 hook(s)`.
+
+**Language verification, real synthesis on this machine (`scripts/lang_probe.py`):**
+
+```
+fr  piper  fr_FR-siwis-medium      3.10s of audio   OK after 4.6s cold
+es  piper  es_ES-davefx-medium     2.01s            OK
+de  piper  de_DE-thorsten-medium   2.35s            OK
+zh  piper  zh_CN-huayan-medium     2.65s            OK
+ko  piper  ko_KR-kss-medium        2.86s            OK
+hi  piper  hi_IN-priyamvada-medium 3.34s            OK
+vi  piper  vi_VN-vais1000-medium   1.86s            OK
+it  piper  it_IT-paola-medium      2.23s            OK
+ar  piper  ar_JO-kareem-medium     3.48s            OK
+pt / ru / pl / tr / nl                              OK
+th  piper  th_TH-tsync2-medium     3.02s            OK after installing tltk's undeclared deps
+ja  piper  ja_JP-hi_fi_captain-medium               FAILED: pyopenjtalk has no wheel
+```
+
+Japanese is the one genuine gap: Piper's Japanese voice phonemises with
+`pyopenjtalk`, which ships no prebuilt wheel, so it needs a C++ toolchain.
+Rather than leave a cryptic "the voice failed", the error now names the package
+and the command, the language is flagged `ready: false`, and the pane prints the
+hint. Thai had the same shape of problem (tltk's metadata omits pandas/requests/
+unicode-rbnf) and is fixed by one documented install line.
 
 **Open:** `hermes gateway restart` again (the dependency set changed, so the
 running gateway is stale a second time), then record the multilingual demo.

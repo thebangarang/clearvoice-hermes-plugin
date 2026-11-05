@@ -215,7 +215,7 @@ Plugin Doctor: /home/hermes/projects/Clearvoice-hermes-plugin
   registrations: 1 tool(s), 0 hook(s)
 ```
 
-Unit tests: `55 passed`. End-to-end smoke test (real models, no microphone):
+Unit tests: `58 passed`. End-to-end smoke test (real models, no microphone):
 
 ```
 1. synthesizing with on-device Phonon ... 138284 bytes, 2.88s of speech, 1310 ms
@@ -276,7 +276,7 @@ to the catalog before validation passes; it passes.
 | STT works on ≥ 1 backend | ✅ local faster-whisper, verified end to end |
 | Intent clarification works | ✅ rules, confidence, candidates, forced confirmation on consequential words |
 | Phonon local TTS works | ✅ Apache-2.0 31m on CPU, verified end to end |
-| Multilingual works | ✅ 17 languages; Piper for the 16 non-English ones, multilingual Whisper for recognition |
+| Multilingual works | ✅ 16 of 17 languages voice out of the box (verified by real synthesis); Japanese needs `pyopenjtalk` (no wheel), Thai needs one documented install line — both flagged in the pane |
 | Voice picker works | ✅ 37 English Phonon voices + 108 Piper voices, indexed offline |
 | Gradium backend implemented, off by default | ✅ triple-gated (switch + backend + key), refuses before any socket |
 | No audio/transcript persisted | ✅ audit-hook test |

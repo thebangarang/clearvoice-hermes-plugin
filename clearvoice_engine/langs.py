@@ -27,9 +27,20 @@ class Language:
     tts_engine: str  # 'phonon' | 'piper'
     default_voice: str
     stt_model: str  # multilingual unless the language is English
+    extra: str = ""  # optional phonemizer package(s) this voice needs
+    extra_module: str = ""  # the module to probe for that extra
 
     def public(self) -> dict:
-        return asdict(self)
+        return {**asdict(self), "ready": self.ready}
+
+    @property
+    def ready(self) -> bool:
+        """True when its voice can be synthesised on this machine right now."""
+        if self.tts_engine != "piper" or not self.extra_module:
+            return True
+        import importlib.util
+
+        return importlib.util.find_spec(self.extra_module) is not None
 
 
 _LANGUAGES: dict[str, Language] = {
@@ -45,10 +56,16 @@ _LANGUAGES: dict[str, Language] = {
     "tr": Language("tr", "Turkish", "Türkçe", "piper", "tr_TR-dfki-medium", "base"),
     "ar": Language("ar", "Arabic", "العربية", "piper", "ar_JO-kareem-medium", "small"),
     "hi": Language("hi", "Hindi", "हिन्दी", "piper", "hi_IN-priyamvada-medium", "small"),
-    "ja": Language("ja", "Japanese", "日本語", "piper", "ja_JP-hi_fi_captain-medium", "small"),
+    "ja": Language(
+        "ja", "Japanese", "日本語", "piper", "ja_JP-hi_fi_captain-medium", "small",
+        extra="pyopenjtalk", extra_module="pyopenjtalk",
+    ),
     "zh": Language("zh", "Chinese (Mandarin)", "中文", "piper", "zh_CN-huayan-medium", "small"),
     "ko": Language("ko", "Korean", "한국어", "piper", "ko_KR-kss-medium", "small"),
-    "th": Language("th", "Thai", "ไทย", "piper", "th_TH-tsync2-medium", "small"),
+    "th": Language(
+        "th", "Thai", "ไทย", "piper", "th_TH-tsync2-medium", "small",
+        extra="tltk pandas requests unicode-rbnf", extra_module="tltk",
+    ),
     "vi": Language("vi", "Vietnamese", "Tiếng Việt", "piper", "vi_VN-vais1000-medium", "small"),
 }
 

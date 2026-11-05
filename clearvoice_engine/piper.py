@@ -24,6 +24,34 @@ class PiperError(RuntimeError):
     """Message is safe to show to the user."""
 
 
+#: Some Piper voices phonemise with an optional package. Name it precisely
+#: instead of saying "the voice failed" — the user can then fix it in one line.
+MISSING_PHONEMIZER_HINTS = {
+    "pyopenjtalk": (
+        "Japanese needs the 'pyopenjtalk' phonemizer, and it has no prebuilt wheel: "
+        "run `pip install pyopenjtalk` (it compiles from source, so it needs cmake and a C++ compiler)."
+    ),
+    "tltk": "Thai needs its phonemizer: run `pip install tltk pandas requests unicode-rbnf`.",
+    "unicode_rbnf": "Thai needs its phonemizer: run `pip install tltk pandas requests unicode-rbnf`.",
+    "pandas": "Thai needs its phonemizer: run `pip install tltk pandas requests unicode-rbnf`.",
+    "requests": "Thai needs its phonemizer: run `pip install tltk pandas requests unicode-rbnf`.",
+}
+
+
+def _missing_phonemizer(exc: BaseException) -> str | None:
+    """Find a ModuleNotFoundError in the chain and explain what to install."""
+    seen: set[int] = set()
+    current: BaseException | None = exc
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        if isinstance(current, ModuleNotFoundError):
+            name = (getattr(current, "name", "") or str(current)).split(".")[0]
+            if name in MISSING_PHONEMIZER_HINTS:
+                return MISSING_PHONEMIZER_HINTS[name]
+        current = current.__cause__ or current.__context__
+    return None
+
+
 _lock = threading.Lock()
 _loaded: dict[str, object] = {}
 
@@ -127,6 +155,9 @@ def synthesize(text: str, key: str, language_code: str | None = None) -> tuple[b
     try:
         chunks = [chunk.audio_int16_bytes for chunk in voice.synthesize(text)]
     except Exception as exc:
+        hint = _missing_phonemizer(exc)
+        if hint:
+            raise PiperError(hint) from exc
         raise PiperError("The voice could not speak that sentence. Try again, or edit the text.") from exc
     pcm = b"".join(chunks)
     if not pcm:

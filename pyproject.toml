@@ -16,6 +16,10 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# Optional phonemizers some Piper voices need. Neither is installed by default:
+# both are only needed by the language that uses them.
+ja = ["pyopenjtalk>=0.4"]                    # Japanese (builds from source)
+th = ["tltk>=1.10", "pandas>=2", "requests>=2", "unicode-rbnf>=2"]
 dev = ["pytest>=8,<9"]
 
 [tool.pytest.ini_options]
