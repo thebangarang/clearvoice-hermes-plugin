@@ -101,6 +101,8 @@ class Proposal:
     confirmation_question: str = ""
     reason: str = ""
     style: str = "courteous"
+    engine: str = "local"        # "local" (rule pack) or "gateway" (the user's model)
+    cost_usd: float | None = None
 
     def public(self) -> dict:
         return asdict(self)

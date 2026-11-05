@@ -161,6 +161,18 @@ def _get_secret(name: str) -> str | None:
         return None
 
 
+def _propose(ctx, transcript, settings, language=None):
+    """Local rule pack first; the user's own model when they turned it on."""
+    from clearvoice_engine import propose as _propose_mod
+
+    return _propose_mod.propose(
+        transcript,
+        settings,
+        language=language,
+        complete=_propose_mod.completer_from_ctx(ctx),
+    )
+
+
 def _read_settings(ctx):
     from clearvoice_engine.settings import Settings
 
@@ -363,8 +375,8 @@ def clearvoice_transcribe(args, **kwargs) -> str:
             "saved": False,
         }
         if (args or {}).get("reframe"):
-            payload["proposal"] = intent.reframe(
-                result.text, settings.rewrite_style, language=result.language or settings.language
+            payload["proposal"] = _propose(
+                ctx, result.text, settings, result.language or settings.language
             ).public()
         return json.dumps(payload, ensure_ascii=False)
     except Exception as exc:
@@ -407,9 +419,7 @@ def clearvoice_say_back(args, **kwargs) -> str:
         except Exception as exc:
             return _error(str(exc) or "Transcription failed.")
 
-        proposal = intent.reframe(
-            result.text, settings.rewrite_style, language=result.language or settings.language
-        )
+        proposal = _propose(ctx, result.text, settings, result.language or settings.language)
         confirmed = (args or {}).get("confirm_required", True) is False
         if not confirmed:
             return json.dumps(
@@ -581,10 +591,8 @@ def _cli_handler(args, **kwargs) -> int:
                 "corrections_applied": result.corrections_applied,
             }
             if getattr(args, "reframe", False):
-                payload["proposal"] = intent.reframe(
-                    result.text,
-                    settings.rewrite_style,
-                    language=result.language or settings.language,
+                payload["proposal"] = _propose(
+                    ctx, result.text, settings, result.language or settings.language
                 ).public()
             if args.json:
                 print(_json.dumps(payload, ensure_ascii=False))
@@ -601,11 +609,7 @@ def _cli_handler(args, **kwargs) -> int:
             result = stt.transcribe(
                 clip, settings, get_key=lambda: _get_secret(GRADIUM_KEY_ENV), lexicon=runtime.lexicon()
             )
-            proposal = intent.reframe(
-                result.text,
-                settings.rewrite_style,
-                language=result.language or settings.language,
-            )
+            proposal = _propose(ctx, result.text, settings, result.language or settings.language)
             spoken = tts.synthesize(
                 proposal.message,
                 settings,
@@ -651,15 +655,8 @@ def _handle_command(raw_args: str, *, ctx=None, **kwargs) -> str:
                 + ("" if opened else "\n(No Desktop window answered - open ClearVoice from Capabilities > Plugins.)")
             )
 
-        from clearvoice_engine import intent
-
-        style = "courteous"
-        if ctx is not None:
-            try:
-                style = _read_settings(ctx).rewrite_style
-            except Exception:
-                style = "courteous"
-        proposal = intent.reframe(text, style)
+        settings = _fallback_settings() if ctx is None else _read_settings(ctx)
+        proposal = _propose(ctx, text, settings)
         lines = [f"Proposed: {proposal.message}"]
         if proposal.needs_confirmation:
             lines.append(f"Needs a check: {proposal.confirmation_question}")

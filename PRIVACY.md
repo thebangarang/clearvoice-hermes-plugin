@@ -88,6 +88,24 @@ the pane says `Network: Cloud optional` and names the backend.
 There is **no automatic fallback** from local to cloud. If local fails, you get
 an error and a retry, not a quiet upload.
 
+### Optional: your own model rebuilds the sentence (`reframe_backend: gateway`)
+
+ClearVoice can hand the *transcript text* to the model Hermes is already
+configured with — in this installation, DeepSeek. This is off by default and it is
+the only path on which text leaves the machine during normal use.
+
+| | |
+|---|---|
+| **Leaves the machine** | The transcript, the language code, and the rewrite style. Nothing else. |
+| **Never leaves** | Audio (it is never stored, so there is nothing to send), your dictionary, your saved phrases, the session history, any identifier for you. |
+| **Who receives it** | The provider configured in Hermes for your active model (here: DeepSeek). ClearVoice holds no key of its own and never sees one. |
+| **Retention** | Governed by that provider, not by this plugin. That is the trade you are making when you switch it on; with rules (the default) nothing leaves at all. |
+| **What comes back** | One sentence, which is **checked before you see it**: same script as the language you chose, no digits you did not say, at least one word of what you did say, no markdown, one sentence, under 240 characters. Anything else is discarded and the on-device sentence is shown instead. |
+
+The pane says which engine produced the sentence ("Rebuilt by your model · $0.00012"
+or nothing, meaning on-device), and says so plainly when a model reply was
+rejected.
+
 ## 4. When network access happens
 
 - **Model download**, once per model, on first use (Hugging Face).

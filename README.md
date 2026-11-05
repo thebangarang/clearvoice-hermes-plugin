@@ -205,6 +205,29 @@ determiners and the courtesy template, and the pipeline — strip the frame, lif
 time, keep the object with its article — is shared. ~80 lines per language, and a
 native speaker can review a table without reading the engine.
 
+### Or let your own model rebuild it — every language, still no audio upload
+
+Set `reframe_backend: gateway` (or tick **Rebuild with my model** in the pane) and
+ClearVoice asks the model Hermes already has configured — no new key, no second
+vendor — for one sentence. The rule packs stay, as the fallback and as the offline
+mode.
+
+| | local (default) | gateway |
+|---|---|---|
+| Leaves the machine | nothing | the transcript **text**, language and style |
+| Audio | never stored, never sent | never stored, never sent |
+| Languages rebuilt | 7 | all 17 |
+| Cost | none | a fraction of a cent per sentence, shown in the pane |
+| Reply checks | — | same script, no invented numbers, keeps your words, one sentence, ≤240 chars — or it is discarded and the local sentence is used |
+
+```
+Rebuilt by your model · $0.00012
+```
+
+That line appears under the sentence when a model produced it. If the model
+answers with something we refuse to show, the pane says so and the on-device
+sentence stands — a model must never put words in the user's mouth.
+
 Why two engines: Gradium's only permissively-licensed Phonon checkpoint is
 English — the multilingual 40m model is **CC BY-NC**, which a commercial plugin
 cannot ship. Piper fills every other language under MIT. Neither makes a network

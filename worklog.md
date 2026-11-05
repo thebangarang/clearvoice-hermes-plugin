@@ -1,5 +1,44 @@
 # Worklog
 
+## 2026-11-05 (v0.6.0) — the user's own model can rebuild the sentence, with a hard gate
+
+**Asked:** "would it fix our problem if we used the LLM connected to Hermes
+(DeepSeek)? Would it improve recognition? And how do commercial services do it?"
+
+**Split the question first.** An LLM never hears audio, so it cannot improve
+recognition — that needs a speech model or speaker adaptation. For *sentence
+rebuilding* a frontier model is strictly better than tables, in every language.
+
+**Built:** `reframe_backend: local | gateway`, default **local**.
+- `clearvoice_engine/rewrite_llm.py` — strict system prompt, then validation the
+  model cannot talk its way out of: same script as the chosen language, every digit
+  must have been said, at least one content unit of the transcript must survive, one
+  sentence, ≤240 chars, no markdown or quotes. Failure ⇒ the local sentence stands,
+  `reason = local_fallback`, and the pane says the reply was rejected.
+- `clearvoice_engine/propose.py` — one decision point for every call site (tools,
+  CLI, slash command, pane): local first (always), model second (opt-in), and the
+  local result is what survives a model outage.
+- `ctx.llm` for tools/CLI, `PluginLlm(plugin_id)` for the dashboard router, so the
+  plugin holds no key and adds no vendor. `usage.cost_usd` is shown: "Rebuilt by
+  your model · $0.00012".
+- Pane: a checkbox under the language row, its own `ctx.storage` pref (never
+  config), and the two honesty lines above.
+
+**What I could not verify here:** the live model call needs the gateway process
+(the host's key never enters a subprocess env), so the wired path is unit-tested
+with a fake completer and the real call is verified after the restart.
+
+**Also learned, from the commercial side (checked, not remembered):** Voiceitt asks
+for 50–200 recorded phrase cards to build a personalised recogniser and claims up to
+3× standard ASR; Google's Project Relate takes 500 phrases (30–60 min) and builds a
+per-user model; Euphonia's research gets useful adaptation from 3–4 minutes of
+speech via layer freezing. None of them pitch "LLM rewrites your sentence" — their
+accuracy is speaker adaptation, which is our honest next step, not a promise.
+
+179 tests, validate green, v0.6.0.
+
+---
+
 ## 2026-11-05 (v0.5.0) — a table per language, and the local model measured and rejected
 
 **Trigger:** "I really think we should try to deliver the most universal and multi

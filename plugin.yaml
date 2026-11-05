@@ -1,5 +1,5 @@
 name: clearvoice
-version: 0.5.0
+version: 0.6.0
 manifest_version: 2
 description: >
   Privacy-first push-to-talk speech-clarity bridge, in 17 languages. You speak
@@ -44,6 +44,12 @@ config_schema:
     default: courteous
     label: Rewrite style
     description: "courteous = 'Could you move the appointment to Tuesday, please?'; literal = your words in a plain order; verbatim = exactly what was recognised."
+  reframe_backend:
+    type: str
+    choices: [local, gateway]
+    default: local
+    label: Who rebuilds the sentence
+    description: "local = the built-in rule packs, fully offline (7 languages rebuilt, 10 polished). gateway = your own model through Hermes (the one you already use), which rebuilds every language. In gateway mode the transcript TEXT leaves this machine; audio never does, and the dictionary is never sent. Invalid or invented replies are discarded and the local sentence is used."
   stt_backend:
     type: str
     choices: [local, gradium]

@@ -36,7 +36,7 @@ _ROOT = str(Path(__file__).resolve().parent.parent)
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 
-from clearvoice_engine import audio, cloud, intent, langs, piper, runtime, stt, tts  # noqa: E402
+from clearvoice_engine import audio, cloud, intent, langs, piper, propose as propose_mod, runtime, stt, tts  # noqa: E402
 from clearvoice_engine.settings import Settings  # noqa: E402
 
 logger = logging.getLogger(__name__)
@@ -78,7 +78,8 @@ def _settings(overrides: dict[str, Any] | None = None) -> Settings:
     # the saved settings for that one request. The pane persists its own choice in
     # ctx.storage, so the plugin never writes config.yaml.
     if overrides:
-        for key in ("language", "voice", "rewrite_style", "stt_backend", "tts_backend", "whisper_model", "phrases_dir"):
+        for key in ("language", "voice", "rewrite_style", "reframe_backend",
+                    "stt_backend", "tts_backend", "whisper_model", "phrases_dir"):
             value = overrides.get(key)
             if isinstance(value, str) and value.strip():
                 mapping = {**mapping, key: value.strip()}
@@ -167,10 +168,12 @@ async def transcribe(payload: dict[str, Any]) -> dict[str, Any]:
         logger.warning("clearvoice: transcribe failed (%s)", type(exc).__name__)
         raise HTTPException(status_code=500, detail="Transcription failed. Try again.") from None
 
-    proposal = intent.reframe(
+    proposal = await asyncio.to_thread(
+        propose_mod.propose,
         result.text,
-        settings.rewrite_style,
+        settings,
         language=result.language or settings.language,
+        complete=propose_mod.completer_from_host(PLUGIN_ID),
     )
     runtime.session.add(result.text, proposal.message, result.backend)
     return {
@@ -189,10 +192,13 @@ async def clarify(payload: dict[str, Any]) -> dict[str, Any]:
     text = str((payload or {}).get("transcript") or "").strip()
     if not text:
         raise HTTPException(status_code=400, detail="Nothing to clarify.")
-    proposal = intent.reframe(
+    resolved = _settings(payload)
+    proposal = await asyncio.to_thread(
+        propose_mod.propose,
         text,
-        _settings(payload).rewrite_style,
-        language=_settings(payload).language,
+        resolved,
+        language=resolved.language,
+        complete=propose_mod.completer_from_host(PLUGIN_ID),
     )
     return {"proposal": proposal.public()}
 

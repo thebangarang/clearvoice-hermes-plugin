@@ -5,6 +5,33 @@ rejected. Newest first.
 
 ---
 
+## D-018 — The sentence can be rebuilt by the user's own model; the audio never leaves (2026-11-05)
+
+**Decision.** `reframe_backend: gateway` (default `local`) sends the transcript
+text, language and style hint to the model Hermes already configured — through
+`ctx.llm` / `PluginLlm`, so the plugin holds no key and adds no vendor. The reply
+is validated before display; on any failure the local rule-pack sentence stands and
+the pane says the reply was rejected.
+
+**Why.** A frontier model rebuilds fragmented speech in all seventeen languages,
+which the rule packs do for seven. The measured local alternative (Qwen2.5-1.5B on
+this CPU) failed exactly where it mattered — D-017 — so the choice is: seven
+languages offline, or seventeen with text-only egress the user switches on.
+
+**What is deliberately *not* claimed.** This does nothing for recognition. An LLM
+never hears audio; ASR accuracy comes from the speech model and from speaker
+adaptation, which is what Voiceitt (50–200 recorded phrase cards) and Google's
+Project Relate (500 phrases, then a personal model) actually sell. Our dictionary
+and learning loop is the cheap local approximation of that; proper adaptation is
+the honest v0.6+ item.
+
+**Cost.** Text leaves the machine when enabled, and the provider's retention then
+applies — said in PRIVACY.md §3 and in the manifest description, not buried. The
+validation rules are strict enough to reject a correct-but-unusual sentence
+occasionally; the fallback makes that a quality issue, never a data one.
+
+---
+
 ## D-017 — One engine, a table per language: seven rebuilt, ten polished (2026-11-05)
 
 **Decision.** The reframing pipeline is shared (`intent_packs.py`); a language is

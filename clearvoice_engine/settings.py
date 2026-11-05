@@ -14,6 +14,7 @@ from typing import Any, Mapping
 
 from . import langs
 
+REWRITE_BACKENDS = ("local", "gateway")
 STT_BACKENDS = ("local", "gradium")
 TTS_BACKENDS = ("auto", "phonon", "piper", "gradium")
 REWRITE_STYLES = ("courteous", "literal", "verbatim")
@@ -48,6 +49,7 @@ class Settings:
     phrases_dir: str = ""
     allow_speech_files: bool = False
     learn_from_edits: bool = False
+    reframe_backend: str = "local"
 
     @classmethod
     def from_mapping(cls, mapping: Mapping[str, Any] | None, *, has_key: bool = False) -> "Settings":
@@ -66,6 +68,7 @@ class Settings:
             phrases_dir=str(data.get("phrases_dir") or "").strip(),
             allow_speech_files=_as_bool(data.get("allow_speech_files"), False),
             learn_from_edits=_as_bool(data.get("learn_from_edits"), False),
+            reframe_backend=_as_choice(data.get("reframe_backend"), REWRITE_BACKENDS, "local"),
         )
 
     # --- derived state -----------------------------------------------------

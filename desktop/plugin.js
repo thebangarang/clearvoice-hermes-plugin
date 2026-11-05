@@ -276,6 +276,19 @@ function CaptionPanel({ phase, draft, transcript, proposal, onDraft, editing, se
             style: { fontSize: '1rem', color: C.faint, lineHeight: 1.4 },
             children: `You said: \u201c${transcript}\u201d`
           })
+        : null,
+      proposal && proposal.engine === 'gateway'
+        ? jsx('div', {
+            style: { fontSize: '0.75rem', color: C.faint },
+            children: 'Rebuilt by your model' +
+              (typeof proposal.cost_usd === 'number' ? ` \u00b7 $${proposal.cost_usd.toFixed(5)}` : '')
+          })
+        : null,
+      proposal && proposal.engine === 'local' && proposal.reason === 'local_fallback'
+        ? jsx('div', {
+            style: { fontSize: '0.75rem', color: C.faint },
+            children: 'Your model answered, but the reply failed the safety check \u2014 using the on-device sentence.'
+          })
         : null
     ]
   })
@@ -803,6 +816,7 @@ function ClearVoice({ compact }) {
   const [voice, setVoice] = useState('')
   const [voices, setVoices] = useState([])
   const [rewriteStyle, setRewriteStyle] = useState('courteous')
+  const [reframeBackend, setReframeBackend] = useState('local')
   const [phrasesFolder, setPhrasesFolder] = useState('')
   const [phrasesFolderCustom, setPhrasesFolderCustom] = useState(false)
   const [choosingFolder, setChoosingFolder] = useState(false)
@@ -964,7 +978,7 @@ function ClearVoice({ compact }) {
         const audio_b64 = await blobToBase64(blob)
         const data = await REST('/transcribe', {
           method: 'POST',
-          body: { audio_b64, mime: mimeType || 'audio/webm', language, rewrite_style: rewriteStyle }
+          body: { audio_b64, mime: mimeType || 'audio/webm', language, rewrite_style: rewriteStyle, reframe_backend: reframeBackend }
         })
         if (!mounted.current) return
         const next = data && data.proposal ? data.proposal : null
@@ -980,7 +994,7 @@ function ClearVoice({ compact }) {
         setPhase('error')
       }
     },
-    [stopTracks, language, rewriteStyle]
+    [stopTracks, language, rewriteStyle, reframeBackend]
   )
 
   const startRecording = useCallback(async () => {
@@ -1175,6 +1189,7 @@ function ClearVoice({ compact }) {
     setLanguage(savedLanguage)
     setVoice(savedVoice)
     setRewriteStyle(savedStyle)
+    setReframeBackend(readPref('reframeBackend', 'local') === 'gateway' ? 'gateway' : 'local')
     setLearning(readPref('learning', false) === true)
     void refreshStatus()
     void refreshPhrases()
@@ -1262,6 +1277,26 @@ function ClearVoice({ compact }) {
           setRewriteStyle(value)
           writePref('rewriteStyle', value)
         }
+      }),
+
+      jsxs('label', {
+        style: { display: 'flex', alignItems: 'flex-start', gap: '8px', fontSize: '0.8125rem', color: C.dim, lineHeight: 1.35 },
+        children: [
+          jsx('input', {
+            type: 'checkbox',
+            checked: reframeBackend === 'gateway',
+            onChange: event => {
+              const value = event.target.checked ? 'gateway' : 'local'
+              setReframeBackend(value)
+              writePref('reframeBackend', value)
+            },
+            style: { marginTop: '2px', width: '18px', height: '18px' }
+          }),
+          jsx('span', {
+            children:
+              'Rebuild with my model \u2014 off by default. When on, the transcript TEXT goes to the model Hermes already uses (never the audio, never the dictionary). Every reply is checked for invented words and numbers; if it fails, the on-device sentence is used.'
+          })
+        ]
       }),
 
       jsx(PushToTalkButton, {

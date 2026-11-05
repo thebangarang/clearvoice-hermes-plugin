@@ -6,7 +6,7 @@
 | | |
 |---|---|
 | **Plugin name** | `clearvoice` |
-| **Version** | 0.5.0 |
+| **Version** | 0.6.0 |
 | **Licence** | MIT |
 | **Tools** | 3 — `clearvoice_transcribe`, `clearvoice_speak`, `clearvoice_say_back` |
 | **Languages** | 17 — English, French, German, Spanish, Portuguese, Italian, Dutch, Polish, Russian, Turkish, Arabic, Hindi, Japanese, Mandarin, Korean, Thai, Vietnamese |
