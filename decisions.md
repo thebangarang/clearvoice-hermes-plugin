@@ -5,6 +5,26 @@ rejected. Newest first.
 
 ---
 
+## D-014 — The demo is cut from the take, not performed to a script (2026-11-05)
+
+**Decision.** The demo video is produced by `scripts/cut_demo.py`, which reads
+the audio track of a natural screen recording, finds the active moments, drops
+dead air, and fits 90 seconds. Captions and cut points follow the recording. The
+on-device narration is optional and never replaces the take's own audio.
+
+**Why.** The first version asked a non-video-editor to hit ten beats inside 90
+seconds while driving a UI, against a fixed 64-second narration. That is not a
+thing a person can do, and the honest reading of "it's almost impossible for me
+to shoot it" is that the pipeline was wrong, not the user. Deriving the cut from
+`silencedetect` costs nothing and makes the recording burden ~3 minutes of
+ordinary use.
+
+**Cost.** The video is only as good as the take; a muted microphone yields no
+moments and the cutter keeps the whole clip. The "active moments" line makes that
+visible instead of silently producing a bad video.
+
+---
+
 ## D-013 — Accuracy comes from a personal dictionary, not from training (2026-11-05)
 
 **Decision.** Accuracy work is: hotwords from a user's own word list, plus

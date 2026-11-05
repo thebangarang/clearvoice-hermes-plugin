@@ -1,5 +1,36 @@
 # Worklog
 
+## 2026-11-05 (v0.3.1) — the demo now follows the take instead of the other way round
+
+**Trigger:** "the audio is only 1:04 and the video is supposed to be 1:30 …
+how do you expect me to make the video synced with all this? It's almost
+impossible for me to shoot it."
+
+That was a design fault, not a shooting problem: a fixed 64-second narration plus
+a ten-beat cue sheet assumed a performer. Replaced with `scripts/cut_demo.py`:
+
+- `silencedetect` on the take's audio → active moments; short gaps merged so a
+  sentence is never split.
+- Moments kept in order until 86 s of screen; dead air and the leftover tail
+  dropped. Fumble at the start, three-minute take: both fine.
+- Title card (3 s) + moments + end card (4 s), captions burned onto the beats
+  **it** found, `+faststart`, 1080p30.
+- `--narration` mixes the on-device voice-over *under* the take, never instead
+  of it. Default off: the voice in the demo should be the app's.
+- `docs/DEMO.md` states the protocol: record once, naturally, stop when done.
+
+Bugs found and fixed while proving it on a stand-in take (82.4 s → 70.7 s):
+- SRT stamps written as `MM:SS.mmm` → libass refused the file with a misleading
+  "Unable to open"; now `HH:MM:SS,mmm`.
+- Unlabelled `subtitles` filter could not bind in a multi-input graph; now
+  `[0:v]…[vout]` and explicit maps.
+- 19 micro-segments from per-breath detection → merged to 5 real moments.
+
+**Verified:** 85 tests (6 new, on the cutter's pure functions), the build run end
+to end, and a frame inspected to confirm the captions render at the bottom.
+
+---
+
 ## 2026-11-05 (v0.3.0) — three tools, a personal dictionary, learning off by default
 
 **Trigger:** two questions from the user — "how do we improve accuracy, and can

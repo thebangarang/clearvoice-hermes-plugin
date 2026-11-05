@@ -1,39 +1,19 @@
 1
-00:00:05,000 --> 00:00:15,000
-She holds one button. The mic is open only while she holds it.
+00:00:03,000 --> 00:00:18,222
+Hold to talk — the mic is open only while held.
 
 2
-00:00:15,000 --> 00:00:22,000
+00:00:18,222 --> 00:00:32,175
 ClearVoice writes down what it heard.
 
 3
-00:00:22,000 --> 00:00:30,000
-It offers one clear sentence. Nothing is spoken yet.
+00:00:32,175 --> 00:00:46,128
+One clear sentence, in large text — nothing spoken yet.
 
 4
-00:00:30,000 --> 00:00:36,000
-She can change it before it is said.
-
-5
-00:00:36,000 --> 00:00:45,000
+00:00:46,128 --> 00:00:56,911
 Speak it — the voice runs on this laptop, offline.
 
-6
-00:00:45,000 --> 00:00:55,000
-Audio processed this session only. Nothing saved.
-
-7
-00:00:55,000 --> 00:01:05,000
-When it misses, it says so. She starts again.
-
-8
-00:01:05,000 --> 00:01:15,000
-Her own words make it hear her better.
-
-9
-00:01:15,000 --> 00:01:22,000
-No background listening. No saved audio.
-
-10
-00:01:22,000 --> 00:01:30,000
-Nothing leaves the machine.
+5
+00:00:56,911 --> 00:01:06,424
+When it misses, it says so, and you start again.
