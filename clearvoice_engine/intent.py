@@ -17,6 +17,9 @@ import re
 from dataclasses import asdict, dataclass, field
 from typing import Iterable
 
+from . import intent_fr as _fr
+from .intent_fr import guess_language
+
 # --------------------------------------------------------------------------
 # Vocabulary
 # --------------------------------------------------------------------------
@@ -264,17 +267,30 @@ def _candidates(intent: str, primary: str, tokens: list[str]) -> list[str]:
 # --------------------------------------------------------------------------
 
 
-def reframe(transcript: str, style: str = "courteous") -> Proposal:
+def reframe(transcript: str, style: str = "courteous", language: str | None = None) -> Proposal:
     """Turn a raw transcript into a proposed clear sentence.
 
     ``style`` decides how much is rebuilt:
     ``courteous`` (default) — reorders into a polite request, the brief's flow;
     ``literal`` — the user's own words in a plain order, no courtesy frame;
     ``verbatim`` — exactly what was recognised, tidied only at the edges.
+
+    ``language`` picks the rule pack. English and French have their own tables,
+    because a reframer that only knows English returns French unchanged — which
+    reads to a French speaker as "it does nothing". When no language is given the
+    text decides, and the caller should pass the recogniser's language when it has
+    one.
     """
     cleaned = clean_transcript(transcript)
     tokens = _tokens(cleaned)
     style = style if style in ("courteous", "literal", "verbatim") else "courteous"
+
+    resolved = (language or "").strip().lower()[:2]
+    if resolved not in ("en", "fr"):
+        resolved = guess_language(cleaned)
+
+    if resolved == "fr":
+        return _reframe_fr(cleaned, tokens, style)
 
     if not tokens:
         return Proposal(
@@ -324,23 +340,13 @@ def reframe(transcript: str, style: str = "courteous") -> Proposal:
 
     message = message[:MAX_MESSAGE_CHARS]
 
-    content_words = len([t for t in tokens if t not in {"i", "a", "the", "to", "my", "me", "you", "is", "it"}])
-    confidence = 0.55
-    if intent != "unclear":
-        confidence += 0.15
-    if has_verb_object:
-        confidence += 0.15
-    if has_time:
-        confidence += 0.10
-    if content_words >= 3:
-        confidence += 0.05
-    if content_words <= 1:
-        confidence -= 0.20
-    # A short, complete utterance ("Yes.", "Hello.") is not an uncertain one:
-    # the whole message arrived. Consequential single words still ask first.
-    if len(tokens) <= 2 and intent != "unclear":
-        confidence = max(confidence, 0.8)
-    confidence = round(max(0.05, min(0.95, confidence)), 2)
+    confidence = _confidence(
+        intent,
+        tokens,
+        has_verb_object,
+        has_time,
+        stopwords={"i", "a", "the", "to", "my", "me", "you", "is", "it"},
+    )
 
     consequential = any(t in CONSEQUENTIAL for t in tokens)
     low = confidence < 0.6 or intent == "unclear"
@@ -364,6 +370,129 @@ def reframe(transcript: str, style: str = "courteous") -> Proposal:
         needs_confirmation=needs_confirmation,
         consequential=consequential,
         candidates=_candidates(intent, message, tokens) if (low or consequential) else [message],
+        confirmation_question=question,
+        reason=reason,
+        style=style,
+    )
+
+
+# --------------------------------------------------------------------------
+# Shared scoring, and the French entry point
+# --------------------------------------------------------------------------
+
+
+def _confidence(
+    intent: str,
+    tokens: list[str],
+    has_verb_object: bool,
+    has_time: bool,
+    *,
+    stopwords: set[str],
+) -> float:
+    """How sure the rules are. Language-independent, so both packs agree."""
+    content_words = len([t for t in tokens if t not in stopwords])
+    confidence = 0.55
+    if intent != "unclear":
+        confidence += 0.15
+    if has_verb_object:
+        confidence += 0.15
+    if has_time:
+        confidence += 0.10
+    if content_words >= 3:
+        confidence += 0.05
+    if content_words <= 1:
+        confidence -= 0.20
+    # A short, complete utterance ("Yes.", "Bonjour.") is not an uncertain one:
+    # the whole message arrived. Consequential single words still ask first.
+    if len(tokens) <= 2 and intent != "unclear":
+        confidence = max(confidence, 0.8)
+    return round(max(0.05, min(0.95, confidence)), 2)
+
+
+def _reframe_fr(cleaned: str, tokens: list[str], style: str) -> Proposal:
+    """French path: same shape as English, French tables."""
+    if not tokens:
+        return Proposal(
+            transcript="",
+            message="",
+            intent="unclear",
+            confidence=0.0,
+            needs_confirmation=True,
+            consequential=False,
+            candidates=[],
+            confirmation_question="Je n'ai pas compris. Vous pouvez répéter ?",
+            reason="no_speech",
+            style=style,
+        )
+
+    intent = _fr.classify(tokens)
+    tokens = _fr.tokens_of(cleaned) or tokens
+    has_verb_object = False
+    has_time = False
+    if style == "verbatim":
+        message = _fr.verbatim(cleaned, intent)
+        has_verb_object = intent == "request"
+    elif style == "literal":
+        if intent == "request":
+            message = _fr.literal(tokens)
+            has_verb_object = True
+        else:
+            message = _fr.verbatim(cleaned, intent)
+    elif intent == "request":
+        message, has_verb_object, has_time = _fr.courteous(tokens)
+    elif intent == "question":
+        message = _fr.capitalise(" ".join(tokens)).rstrip("? ") + " ?"
+    elif intent == "affirmation":
+        message = "Oui, volontiers." if "svp" in tokens else "Oui."
+    elif intent == "negation":
+        message = "Non, merci."
+    elif intent == "greeting":
+        norms = [_fr._norm(t) for t in tokens]
+        if {"revoir", "au", "bye"} & set(norms):
+            message = "Au revoir."
+        elif "merci" in norms and not ({"bonjour", "salut", "bonsoir"} & set(norms)):
+            message = "Merci."
+        elif "bonsoir" in norms:
+            message = "Bonsoir."
+        elif "salut" in norms:
+            message = "Salut."
+        else:
+            message = "Bonjour."
+    else:
+        message = _fr.capitalise(" ".join(tokens)).rstrip(".") + "."
+
+    message = message[:MAX_MESSAGE_CHARS]
+
+    confidence = _confidence(
+        intent,
+        tokens,
+        has_verb_object,
+        has_time,
+        stopwords=_fr.FR_FRAME_WORDS,
+    )
+
+    consequential = any(_fr._norm(t) in _fr.FR_CONSEQUENTIAL for t in tokens)
+    low = confidence < 0.6 or intent == "unclear"
+    needs_confirmation = low or consequential
+
+    if consequential and not low:
+        question = "Cela semble important. C'est bien ce que vous voulez dire ?"
+        reason = "consequential"
+    elif low:
+        question = "Je ne suis pas sûr d'avoir compris. Est-ce bien ce que vous vouliez dire ?"
+        reason = "low_confidence"
+    else:
+        question = ""
+        reason = ""
+
+    return Proposal(
+        transcript=cleaned,
+        message=message,
+        intent=intent,
+        confidence=confidence,
+        needs_confirmation=needs_confirmation,
+        consequential=consequential,
+        candidates=_fr.candidates(intent, message, tokens) if (low or consequential) else [message],
         confirmation_question=question,
         reason=reason,
         style=style,

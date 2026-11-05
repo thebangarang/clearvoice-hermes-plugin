@@ -167,11 +167,11 @@ def still(path: Path, seconds: float, out: Path, silent: bool = True) -> None:
 
 
 BEATS = [
-    ("Hold to talk — the mic is open only while held.", 0.00, 0.24),
-    ("ClearVoice writes down what it heard.", 0.24, 0.46),
-    ("One clear sentence, in large text — nothing spoken yet.", 0.46, 0.68),
-    ("Speak it — the voice runs on this laptop, offline.", 0.68, 0.85),
-    ("When it misses, it says so, and you start again.", 0.85, 1.01),
+    ("Hold to talk — the mic is open only while held.", 0.00, 0.22),
+    ("ClearVoice writes down what it heard.", 0.22, 0.42),
+    ("One clear sentence, in large text — nothing spoken yet.", 0.42, 0.60),
+    ("Speak it — the voice runs on this laptop, offline.", 0.60, 0.78),
+    ("It missed a name. Adding that word to my dictionary fixes it.", 0.78, 1.01),
 ]
 
 

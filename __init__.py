@@ -363,7 +363,9 @@ def clearvoice_transcribe(args, **kwargs) -> str:
             "saved": False,
         }
         if (args or {}).get("reframe"):
-            payload["proposal"] = intent.reframe(result.text, settings.rewrite_style).public()
+            payload["proposal"] = intent.reframe(
+                result.text, settings.rewrite_style, language=result.language or settings.language
+            ).public()
         return json.dumps(payload, ensure_ascii=False)
     except Exception as exc:
         logger.warning("clearvoice_transcribe failed: %s", exc)
@@ -405,7 +407,9 @@ def clearvoice_say_back(args, **kwargs) -> str:
         except Exception as exc:
             return _error(str(exc) or "Transcription failed.")
 
-        proposal = intent.reframe(result.text, settings.rewrite_style)
+        proposal = intent.reframe(
+            result.text, settings.rewrite_style, language=result.language or settings.language
+        )
         confirmed = (args or {}).get("confirm_required", True) is False
         if not confirmed:
             return json.dumps(
@@ -577,7 +581,11 @@ def _cli_handler(args, **kwargs) -> int:
                 "corrections_applied": result.corrections_applied,
             }
             if getattr(args, "reframe", False):
-                payload["proposal"] = intent.reframe(result.text, settings.rewrite_style).public()
+                payload["proposal"] = intent.reframe(
+                    result.text,
+                    settings.rewrite_style,
+                    language=result.language or settings.language,
+                ).public()
             if args.json:
                 print(_json.dumps(payload, ensure_ascii=False))
             else:
@@ -593,7 +601,11 @@ def _cli_handler(args, **kwargs) -> int:
             result = stt.transcribe(
                 clip, settings, get_key=lambda: _get_secret(GRADIUM_KEY_ENV), lexicon=runtime.lexicon()
             )
-            proposal = intent.reframe(result.text, settings.rewrite_style)
+            proposal = intent.reframe(
+                result.text,
+                settings.rewrite_style,
+                language=result.language or settings.language,
+            )
             spoken = tts.synthesize(
                 proposal.message,
                 settings,

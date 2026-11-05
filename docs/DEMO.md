@@ -6,6 +6,9 @@ cut follows your recording instead of the other way round.
 
 ## What you actually do
 
+One language: English. A French take without the before/after of the dictionary
+looks like a bug rather than a demo, so it stays out of this video.
+
 1. Open ClearVoice in the Desktop app.
 2. In OBS: **Start Recording**. (Screen capture + mic. Desktop audio on, so the
    app's own voice is in the take — that is the proof.)
@@ -13,8 +16,8 @@ cut follows your recording instead of the other way round.
    - hold the button, say something, let go
    - read the sentence it proposes
    - press **Speak it** and listen
-   - switch to French and do it once in French
-   - let it fail once — that is a feature, not a blemish
+   - let it miss a word — a name, a street — and then add that word in the
+     dictionary panel and say the sentence again, so the progression is visible
 4. Press **Stop Recording**. Save to `~/Videos/clearvoice-raw.mkv`.
 
 No length to hit. Fumbling at the start is fine, it gets cut. A long silence in

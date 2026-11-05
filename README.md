@@ -185,6 +185,11 @@ ClearVoice speaks and understands **17 languages**, all on-device:
 | **Voice, other 16** | **Piper** (MIT runtime). 108 voice models in the bundled index: 7 French, 10 German, 9 Spanish, 4 Chinese, 3 Hindi, 3 Vietnamese, and one each for Japanese, Korean and Thai |
 | **Voice picker** | In the pane: pick a language, then any voice for it. The choice is remembered (`ctx.storage`), never written into `config.yaml` |
 | **Out of the box** | All 17 voice a sentence, verified by real synthesis on this machine. **Thai** needs `pip install tltk pandas requests unicode-rbnf` and **Japanese** needs `pyopenjtalk` (declared as optional extras `clearvoice[th]` / `clearvoice[ja]`; `pyopenjtalk` may build from source, so have `cmake` and a C++ compiler). The pane flags a language whose voice is not installed yet and prints the exact command |
+| **Sentence rewriting** | Full reframing rules in **English and French**. The other 15 speak and understand, but their sentences are only tidied at the edges — no verb extraction, no courtesy frame. Honest limit, not a promise |
+
+"J'ai besoin… rendez-vous… mardi… déplacer." becomes *"Pourriez-vous déplacer le
+rendez-vous pour mardi, s'il vous plaît ?"* — the same reordering as English, from
+a French rule pack (`clearvoice_engine/intent_fr.py`), not from a model.
 
 Why two engines: Gradium's only permissively-licensed Phonon checkpoint is
 English — the multilingual 40m model is **CC BY-NC**, which a commercial plugin
@@ -471,7 +476,8 @@ clearvoice-hermes-plugin/
 │   ├── tts.py                  # engine routing: Phonon (en) · Piper (others) · Gradium
 │   ├── langs.py                # the 17 languages, voice index, Whisper-model mapping
 │   ├── piper.py                # MIT local engine for every non-English language
-│   ├── intent.py               # deterministic reframer (3 rewrite styles) + confidence
+│   ├── intent.py               # deterministic reframer (3 styles), shared scoring
+│   ├── intent_fr.py            # French rule pack: verb forms, time spans, "Pourriez-vous…"
 │   ├── privacy.py              # session store, saved phrases
 │   ├── cloud.py                # Gradium REST, gated and key-safe
 │   ├── settings.py             # validated settings view

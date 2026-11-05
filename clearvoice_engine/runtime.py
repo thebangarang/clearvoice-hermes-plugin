@@ -76,12 +76,19 @@ def data_dir() -> Path:
     """The plugin's own data directory (the only folder it may write to).
 
     ``CLEARVOICE_DATA_DIR`` wins when set — used by tests and by an operator
-    running the engine outside Hermes.
+    running the engine outside Hermes. Without Hermes (a plain Python import, a
+    script, a cron job) the engine falls back to the XDG data directory instead
+    of failing, so ``clearvoice_engine`` really is usable as a library.
     """
     override = os.environ.get("CLEARVOICE_DATA_DIR")
     if override:
         return Path(override)
-    from plugins.plugin_storage import plugin_data_dir  # Hermes-owned
+    try:
+        from plugins.plugin_storage import plugin_data_dir  # Hermes-owned
+    except Exception:
+        base = Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local" / "share")) / "clearvoice"
+        base.mkdir(parents=True, exist_ok=True)
+        return base
 
     return Path(plugin_data_dir("clearvoice"))
 

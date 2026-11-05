@@ -5,6 +5,27 @@ rejected. Newest first.
 
 ---
 
+## D-015 — The reframer has a rule pack per language, not one English rule set (2026-11-05)
+
+**Decision.** `intent.py` keeps the English rules; `intent_fr.py` holds a French
+pack (verb forms, time spans, determiners with elision, classification,
+"Pourriez-vous … s'il vous plaît ?"). `reframe(text, style, language=)` dispatches,
+the recogniser's language is preferred, and `guess_language()` decides only when
+the caller has none — defaulting to English on a tie.
+
+**Why.** One rule set written for English finds no verb, no time word and no
+frame in French, so it returns the transcript unchanged. That is not a small
+inaccuracy: it means the product silently does nothing in the user's own
+language, and the difference is instantly visible ("in english it puts the words
+in order, in french it's literally the exact thing I said").
+
+**Cost.** Every new language is a table to write, not a model to call. Only
+English and French exist today; the other 15 have speech in and out, but their
+sentences are only tidied at the edges. Said plainly in the README rather than
+implied.
+
+---
+
 ## D-014 — The demo is cut from the take, not performed to a script (2026-11-05)
 
 **Decision.** The demo video is produced by `scripts/cut_demo.py`, which reads

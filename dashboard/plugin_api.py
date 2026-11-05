@@ -167,7 +167,11 @@ async def transcribe(payload: dict[str, Any]) -> dict[str, Any]:
         logger.warning("clearvoice: transcribe failed (%s)", type(exc).__name__)
         raise HTTPException(status_code=500, detail="Transcription failed. Try again.") from None
 
-    proposal = intent.reframe(result.text, settings.rewrite_style)
+    proposal = intent.reframe(
+        result.text,
+        settings.rewrite_style,
+        language=result.language or settings.language,
+    )
     runtime.session.add(result.text, proposal.message, result.backend)
     return {
         "transcript": result.text,
@@ -185,7 +189,11 @@ async def clarify(payload: dict[str, Any]) -> dict[str, Any]:
     text = str((payload or {}).get("transcript") or "").strip()
     if not text:
         raise HTTPException(status_code=400, detail="Nothing to clarify.")
-    proposal = intent.reframe(text, _settings(payload).rewrite_style)
+    proposal = intent.reframe(
+        text,
+        _settings(payload).rewrite_style,
+        language=_settings(payload).language,
+    )
     return {"proposal": proposal.public()}
 
 

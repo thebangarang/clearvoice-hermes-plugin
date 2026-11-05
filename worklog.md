@@ -1,5 +1,52 @@
 # Worklog
 
+## 2026-11-05 (v0.3.2) — the reframer learns French, and the demo speaks one language
+
+**Trigger:** "in english, it will guess the sentence and put words in order and
+add more words if needed. In french it's literally the exact thing I said." Plus:
+"why should I do a demo on the french part that's not working if we don't show
+the progression with the learning function."
+
+The first report was a real defect, reproduced in one line:
+
+```
+en | request | 0.95 | Could you move the appointment to Tuesday, please?
+fr | statement | 0.75 | J'ai besoin rendez-vous mardi déplacer.
+```
+
+The reframer was English-only — English verb list, English time words, English
+"Could you…" frame — so on French it matched nothing and returned the transcript
+with a capital letter. Fixed with `clearvoice_engine/intent_fr.py`: French verb
+forms (infinitive + spoken inflections), day/month/relative time spans including
+"de mardi à jeudi", frame-word stripping that survives elision ("j'ai" → "j"),
+an article guesser with elision ("l'ordonnance", "la facture", "le rendez-vous"),
+French classification (request/question/affirmation/negation/greeting), and a
+"Pourriez-vous … s'il vous plaît ?" frame. `reframe(..., language=)` dispatches;
+`guess_language()` decides when the caller has no language, and defaults to
+English on a tie.
+
+Live proof through the real pipeline (Piper fr → Whisper base fr):
+"J'ai besoin de déplacer mon rendez-vous de mardi à jeudi s'il vous plaît."
+→ **"Pourriez-vous déplacer mon rendez-vous de mardi à jeudi, s'il vous plaît ?"**
+
+Bugs found on the way:
+- "à" normalises to "a" (avoir) and was stripped as a frame word, turning "à
+  propos des ordonnances" into "propos des ordonnances".
+- Proper nouns were lowercased ("Lefèvre" → "lefèvre").
+- `guess_language("yes")` returned French, which put English single words on the
+  French pack; English is now the default on a tie.
+- `runtime.data_dir()` imported Hermes' storage module unconditionally, so the
+  engine crashed on a plain Python import — the exact claim INTEGRATION.md makes.
+  It now falls back to the XDG data directory.
+
+Demo: one language, English, with the dictionary progression as the last beat
+(miss a name → add the word → say it again). French is out of the video: without
+showing the learning fix, a French failure is a bug on camera.
+
+**Verified:** 103 tests (18 new French ones), the live pipeline above.
+
+---
+
 ## 2026-11-05 (v0.3.1) — the demo now follows the take instead of the other way round
 
 **Trigger:** "the audio is only 1:04 and the video is supposed to be 1:30 …
