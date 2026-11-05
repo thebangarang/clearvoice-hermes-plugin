@@ -43,6 +43,24 @@ def _key(text: str) -> str:
     return "".join(ch for ch in decomposed if not unicodedata.combining(ch))
 
 
+_SEPARATORS = re.compile(r"[\s\-'’]+")
+
+
+def _loose_key(text: str) -> str:
+    """Key that ignores separators: "rendez-vous", "rendez vous" and "rendezvous"
+    are the same word to a user, and the recogniser writes all three."""
+    return "".join(ch for ch in _key(text) if ch.isalnum())
+
+
+def _pattern_for(term: str) -> re.Pattern[str]:
+    """Match a term however its separators were transcribed (or dropped)."""
+    pieces = [p for p in _SEPARATORS.split(term.strip()) if p]
+    if not pieces:
+        return re.compile(r"(?!x)x")
+    body = r"[\s\-'’]*".join(re.escape(piece) for piece in pieces)
+    return re.compile(rf"(?<!\w){body}(?!\w)", re.IGNORECASE)
+
+
 class Lexicon:
     """The user's own words, kept in the plugin's data directory."""
 
@@ -90,26 +108,46 @@ class Lexicon:
         seen: set[str] = set()
         out: list[str] = []
         for word in words:
-            key = _key(word)
+            key = _loose_key(word)
             if key and key not in seen:
                 seen.add(key)
                 out.append(word)
         return ", ".join(out)
 
     def apply(self, text: str) -> tuple[str, list[dict[str, str]]]:
-        """Apply learned corrections to a transcript. Returns (text, applied)."""
+        """Apply the dictionary to a transcript. Returns (text, applied).
+
+        Two jobs, in this order:
+        1. corrections — what the recogniser heard, replaced by what the user meant;
+        2. terms — spelling normalised to the user's own form, so "rendez vous"
+           and "Rendez-Vous" come back as the "rendez-vous" they typed. A term is
+           a hint for the recogniser first, but the pane should not then show the
+           word spelled a third way.
+        """
         result = _normalise(text)
         applied: list[dict[str, str]] = []
-        corrections = sorted(self._read()["corrections"], key=lambda c: -len(c["heard"]))
+        data = self._read()
+        corrections = sorted(data["corrections"], key=lambda c: -len(c["heard"]))
         for correction in corrections:
             heard = correction["heard"]
             said = correction["said"]
             if _key(heard) == _key(said):
                 continue
-            pattern = re.compile(rf"(?<!\w){re.escape(heard)}(?!\w)", re.IGNORECASE)
+            pattern = _pattern_for(heard)
             if pattern.search(result):
                 result = pattern.sub(said, result)
                 applied.append({"heard": heard, "said": said})
+
+        for term in sorted(data["terms"], key=len, reverse=True):
+            if len(_loose_key(term)) < 4:
+                continue
+            pattern = _pattern_for(term)
+            for match in pattern.finditer(result):
+                surface = match.group(0)
+                if surface != term:
+                    result = result[: match.start()] + term + result[match.end():]
+                    applied.append({"heard": surface, "said": term})
+                    break
         return result, applied
 
     def public(self) -> dict[str, Any]:
@@ -128,7 +166,7 @@ class Lexicon:
         if not cleaned:
             raise ValueError("A dictionary entry needs some text.")
         data = self._read()
-        if any(_key(t) == _key(cleaned) for t in data["terms"]):
+        if any(_loose_key(t) == _loose_key(cleaned) for t in data["terms"]):
             return False
         data["terms"] = (data["terms"] + [cleaned])[-MAX_TERMS:]
         self._write(data)
@@ -136,7 +174,7 @@ class Lexicon:
 
     def remove_term(self, term: str) -> bool:
         data = self._read()
-        kept = [t for t in data["terms"] if _key(t) != _key(term)]
+        kept = [t for t in data["terms"] if _loose_key(t) != _loose_key(term)]
         if len(kept) == len(data["terms"]):
             return False
         data["terms"] = kept

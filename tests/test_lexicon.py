@@ -123,6 +123,37 @@ def test_an_empty_term_is_refused(lexicon):
         lexicon.add_term("   ")
 
 
+# --- French compounds: the spelling the recogniser invents ------------------
+
+
+def test_a_hyphenated_term_survives_a_space_or_no_separator(lexicon):
+    lexicon.add_term("rendez-vous")
+    assert lexicon.apply("rendez vous de mardi")[0] == "rendez-vous de mardi"
+    assert lexicon.apply("RENDEZVOUS de mardi")[0] == "rendez-vous de mardi"
+    assert lexicon.apply("Rendez-Vous de mardi")[0] == "rendez-vous de mardi"
+
+
+def test_a_hyphenated_phrase_is_learned_as_one_correction(lexicon):
+    lexicon.learn("rendez vous", "rendez-vous", enabled=True)
+    corrected, applied = lexicon.apply("mon rendez vous de mardi")
+    assert corrected == "mon rendez-vous de mardi"
+    assert applied
+
+
+def test_separator_variants_are_one_dictionary_entry(lexicon):
+    assert lexicon.add_term("après-midi") is True
+    assert lexicon.add_term("apres midi") is False
+    assert lexicon.add_term("APRES-MIDI") is False
+    assert lexicon.terms() == ["après-midi"]
+
+
+def test_a_short_term_is_never_rewritten_behind_the_users_back(lexicon):
+    # Rewriting "de" or "à" inside a sentence would be vandalism, not correction.
+    lexicon.add_term("de")
+    text = "il faut deplacer le rendez-vous"
+    assert lexicon.apply(text)[0] == text
+
+
 def test_clearing_corrections_keeps_the_terms(lexicon):
     lexicon.add_term("mutuelle")
     lexicon.learn("le faire", "Lefèvre", enabled=True)
