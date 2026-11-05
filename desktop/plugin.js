@@ -280,7 +280,7 @@ function CaptionPanel({ phase, draft, transcript, proposal, onDraft, editing, se
       proposal && proposal.engine === 'gateway'
         ? jsx('div', {
             style: { fontSize: '0.75rem', color: C.faint },
-            children: 'Rebuilt by your model' +
+            children: 'Tidied by your model' +
               (typeof proposal.cost_usd === 'number' ? ` \u00b7 $${proposal.cost_usd.toFixed(5)}` : '')
           })
         : null,
@@ -815,7 +815,7 @@ function ClearVoice({ compact }) {
   const [language, setLanguage] = useState('en')
   const [voice, setVoice] = useState('')
   const [voices, setVoices] = useState([])
-  const [rewriteStyle, setRewriteStyle] = useState('courteous')
+  const [rewriteStyle, setRewriteStyle] = useState('verbatim')
   const [reframeBackend, setReframeBackend] = useState('local')
   const [phrasesFolder, setPhrasesFolder] = useState('')
   const [phrasesFolderCustom, setPhrasesFolderCustom] = useState(false)
@@ -1185,7 +1185,7 @@ function ClearVoice({ compact }) {
     mounted.current = true
     const savedLanguage = readPref('language', 'en')
     const savedVoice = readPref('voice', '')
-    const savedStyle = readPref('rewriteStyle', 'courteous')
+    const savedStyle = readPref('rewriteStyle', 'verbatim')
     setLanguage(savedLanguage)
     setVoice(savedVoice)
     setRewriteStyle(savedStyle)
@@ -1294,7 +1294,7 @@ function ClearVoice({ compact }) {
           }),
           jsx('span', {
             children:
-              'Rebuild with my model \u2014 off by default. When on, the transcript TEXT goes to the model Hermes already uses (never the audio, never the dictionary). Every reply is checked for invented words and numbers; if it fails, the on-device sentence is used.'
+              'Tidy my words with my model \u2014 off by default. When on, the transcript TEXT goes to the model Hermes already uses (never the audio, never the dictionary). It may only remove hesitations and fix punctuation: if it changes, adds or reorders a word, the reply is thrown away and your own words are used.'
           })
         ]
       }),

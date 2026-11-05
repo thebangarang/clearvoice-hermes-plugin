@@ -41,7 +41,7 @@ class Settings:
     tts_backend: str = "auto"
     language: str = "en"
     voice: str = ""
-    rewrite_style: str = "courteous"
+    rewrite_style: str = "verbatim"
     whisper_model: str = ""
     gradium_voice_id: str = ""
     allow_cloud: bool = False
@@ -60,7 +60,7 @@ class Settings:
             tts_backend=_as_choice(data.get("tts_backend"), TTS_BACKENDS, "auto"),
             language=language.code,
             voice=str(data.get("voice") or "").strip(),
-            rewrite_style=_as_choice(data.get("rewrite_style"), REWRITE_STYLES, "courteous"),
+            rewrite_style=_as_choice(data.get("rewrite_style"), REWRITE_STYLES, "verbatim"),
             whisper_model=str(data.get("whisper_model") or "").strip(),
             gradium_voice_id=str(data.get("gradium_voice_id") or "").strip(),
             allow_cloud=_as_bool(data.get("allow_cloud"), False),

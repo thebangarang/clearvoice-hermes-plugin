@@ -5,6 +5,28 @@ rejected. Newest first.
 
 ---
 
+## D-019 — ClearVoice may tidy what you said; it may not improve it (2026-11-05)
+
+**Decision.** `rewrite_style` now defaults to **verbatim**: the sentence offered is
+the transcript, tidied at the edges. `courteous` — the rebuild — is an explicit
+opt-in and exists only where a grammar pack can be checked. The optional model pass
+may remove hesitations and fix punctuation, and **nothing else**: the reply must be
+a subsequence of the transcript's words, or it is discarded.
+
+**Why.** Asked to make fragmented speech "clear and polite", the connected model
+did what chat models do: it paraphrased, dropped details and invented content
+("it hallucinates a lot, it's going far from what I told"). For a person whose
+speech is already hard to hear, a machine that improves their sentence has replaced
+them — the exact failure this product exists to prevent. The brief's "propose a
+clear sentence" was implemented as a rewrite; that was the mistake, and it was mine.
+
+**Cost.** With verbatim by default the demo is less flattering: it shows a
+transcript, not a language model's gift for prose. That is the honest product. The
+rewrite remains available for people who want it, labelled as a rewrite, and only
+in the seven languages whose grammar is checked.
+
+---
+
 ## D-018 — The sentence can be rebuilt by the user's own model; the audio never leaves (2026-11-05)
 
 **Decision.** `reframe_backend: gateway` (default `local`) sends the transcript
@@ -13,10 +35,10 @@ text, language and style hint to the model Hermes already configured — through
 is validated before display; on any failure the local rule-pack sentence stands and
 the pane says the reply was rejected.
 
-**Why.** A frontier model rebuilds fragmented speech in all seventeen languages,
-which the rule packs do for seven. The measured local alternative (Qwen2.5-1.5B on
-this CPU) failed exactly where it mattered — D-017 — so the choice is: seven
-languages offline, or seventeen with text-only egress the user switches on.
+**Why.** A frontier model *could* rebuild fragmented speech in all seventeen
+languages, which the rule packs do for seven. In practice it paraphrased and
+invented, so the model's role was cut back to cleanup only — see D-019, which
+supersedes the rewriting part of this decision.
 
 **What is deliberately *not* claimed.** This does nothing for recognition. An LLM
 never hears audio; ASR accuracy comes from the speech model and from speaker

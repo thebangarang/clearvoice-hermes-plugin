@@ -109,7 +109,8 @@ def test_slash_command_without_text_opens_the_pane(plugin, fake_ctx):
 def test_slash_command_with_text_proposes_but_does_not_speak(plugin, fake_ctx):
     ctx = _register(plugin, fake_ctx)
     message = ctx.commands["clearvoice"]("I need... appointment... Tuesday... move.")
-    assert "Could you move the appointment to Tuesday, please?" in message
+    # Verbatim is the default: the slash command offers back what was heard.
+    assert "I need appointment Tuesday move." in message
     assert "nothing is spoken" in message.lower()
 
 

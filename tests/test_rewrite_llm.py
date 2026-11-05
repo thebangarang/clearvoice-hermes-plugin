@@ -1,8 +1,10 @@
-"""The optional cloud rewrite: strict validation, and a silent local fallback.
+"""The optional model pass may only *clean* the transcript, never improve it.
 
-The interesting tests are the refusals. A model that invents a day, swaps language
-or paraphrases away the meaning must never become the sentence a person speaks to
-a doctor, so every such reply is discarded and the local rule pack stands.
+The first version asked the model to rewrite fragmented speech into a polite
+sentence, and it did — paraphrasing and sometimes inventing. These tests hold the
+stricter contract now: the reply must be a subsequence of the user's own words, and
+anything that adds or reorders a word is discarded in favour of the on-device
+sentence.
 """
 
 from __future__ import annotations
@@ -21,47 +23,77 @@ class FakeResult:
 
 
 def settings(**overrides):
-    mapping = {"language": "en", "rewrite_style": "courteous", "reframe_backend": "local"}
+    mapping = {"language": "en", "rewrite_style": "verbatim", "reframe_backend": "local"}
     mapping.update(overrides)
     return Settings.from_mapping(mapping)
 
 
-# --- validation ------------------------------------------------------------
+# --- accepted: a cleanup of the same words --------------------------------
 
 
-def test_a_faithful_rewrite_is_accepted():
+def test_hesitations_removed_is_accepted():
     ok, why = rewrite_llm.validate(
-        "Could you move the appointment to Tuesday, please?",
-        "i need appointment tuesday move",
+        "I need appointment tuesday move.",
+        "i need, euh, appointment... tuesday... move",
         "en",
     )
     assert ok, why
 
 
-def test_an_invented_number_is_refused():
-    # The single most damaging hallucination: a different day, dose or time.
+def test_capital_and_full_stop_are_accepted():
     ok, why = rewrite_llm.validate(
-        "Could you move the appointment to Tuesday at 3 pm, please?",
+        "I need appointment tuesday move.", "i need appointment tuesday move", "en"
+    )
+    assert ok, why
+
+
+def test_japanese_cleanup_keeps_the_characters():
+    ok, why = rewrite_llm.validate("予約 火曜日 変える 必要。", "予約 火曜日 変える 必要", "ja")
+    assert ok, why
+
+
+# --- refused: anything that speaks instead of the user --------------------
+
+
+def test_an_added_word_is_refused():
+    ok, why = rewrite_llm.validate(
+        "I need the appointment on Tuesday.", "i need appointment tuesday move", "en"
+    )
+    assert not ok and why == "added_or_reordered_words"
+
+
+def test_an_invented_politeness_phrase_is_refused():
+    # Exactly what the model used to do: "Could you ... please?" was never said.
+    ok, why = rewrite_llm.validate(
+        "Could you move the appointment to Tuesday, please?",
         "i need appointment tuesday move",
         "en",
     )
-    assert not ok and why == "invented_number"
+    assert not ok and why == "added_or_reordered_words"
 
 
-def test_a_number_that_was_said_is_allowed():
-    ok, _ = rewrite_llm.validate(
-        "Could you move the appointment to Tuesday at 3 pm, please?",
-        "i need appointment tuesday 3 move",
-        "en",
+def test_reordered_words_are_refused():
+    ok, why = rewrite_llm.validate("Tuesday move appointment.", "appointment tuesday move", "en")
+    assert not ok and why == "added_or_reordered_words"
+
+
+def test_dropping_half_the_sentence_is_refused():
+    ok, why = rewrite_llm.validate(
+        "Tuesday.", "i need appointment tuesday move pharmacy tomorrow", "en"
     )
-    assert ok
+    assert not ok and why == "dropped_too_much"
+
+
+def test_a_wrong_script_is_refused():
+    ok, why = rewrite_llm.validate("Could you move the appointment?", "予約 移動", "ja")
+    assert not ok and why == "wrong_script"
 
 
 @pytest.mark.parametrize(
     "reply,reason",
     [
-        ("**Could you move it?**", "markdown"),
-        ("\"Could you move the appointment?\"", "quoted"),
+        ("**I need it.**", "markdown"),
+        ('"I need appointment."', "quoted"),
         ("First sentence. Second one. Third.", "not_one_sentence"),
         ("", "empty"),
         ("x" * 300, "too_long"),
@@ -72,47 +104,37 @@ def test_shapes_we_never_show(reply, reason):
     assert not ok and why == reason
 
 
-def test_a_wrong_script_is_refused():
-    ok, why = rewrite_llm.validate("Could you move the appointment?", "予約 移動", "ja")
-    assert not ok and why == "wrong_script"
-
-
-def test_total_loss_of_meaning_is_refused():
-    ok, why = rewrite_llm.validate("Could you water the plants, please?", "pharmacy tomorrow", "en")
-    assert not ok and why == "loss_of_meaning"
-
-
 # --- the call --------------------------------------------------------------
 
 
-def test_a_good_reply_comes_back_as_the_sentence():
+def test_a_cleanup_reply_comes_back_with_its_cost():
     calls = {}
 
     def complete(messages, **kwargs):
         calls["messages"] = messages
         calls["kwargs"] = kwargs
-        return FakeResult("Could you move the appointment to Tuesday, please?")
+        return FakeResult("I need appointment tuesday move.")
 
     sentence, meta = rewrite_llm.rewrite(
-        "i need appointment tuesday move", "en", "English", "courteous", complete
+        "i need appointment tuesday move", "en", "English", "verbatim", complete
     )
-    assert sentence == "Could you move the appointment to Tuesday, please?"
+    assert sentence == "I need appointment tuesday move."
     assert meta["ok"] is True and meta["model"] == "fake-model"
     assert meta["cost_usd"] == pytest.approx(0.00012)
     assert calls["kwargs"]["temperature"] == 0.0
-    assert "English" in calls["messages"][1]["content"]
+    assert "transcript" in calls["messages"][1]["content"].lower()
 
 
 def test_a_model_that_raises_returns_nothing_instead_of_breaking():
     def complete(messages, **kwargs):
         raise RuntimeError("network down")
 
-    sentence, meta = rewrite_llm.rewrite("hello there", "en", "English", "courteous", complete)
+    sentence, meta = rewrite_llm.rewrite("hello there", "en", "English", "verbatim", complete)
     assert sentence is None
     assert meta["ok"] is False and meta["reason"].startswith("error:")
 
 
-# --- the routing -----------------------------------------------------------
+# --- routing ---------------------------------------------------------------
 
 
 def test_local_mode_never_touches_the_model():
@@ -125,39 +147,28 @@ def test_local_mode_never_touches_the_model():
     proposal = propose.propose("i need appointment tuesday move", settings(), complete=complete)
     assert called == []
     assert proposal.engine == "local"
-    assert proposal.message == "Could you move the appointment to Tuesday, please?"
+    # verbatim is the default: the user's own words, tidied at the edges only.
+    assert proposal.message == "I need appointment tuesday move."
 
 
-def test_gateway_mode_uses_the_model_and_says_so():
+def test_gateway_mode_uses_the_model_for_a_cleanup():
     def complete(messages, **kwargs):
-        return FakeResult("Could you move the appointment to Tuesday, please?")
+        return FakeResult("I need appointment tuesday move.")
 
     proposal = propose.propose(
-        "i need appointment tuesday move",
+        "i need, euh, appointment tuesday move",
         settings(reframe_backend="gateway"),
         complete=complete,
     )
     assert proposal.engine == "gateway"
-    assert proposal.needs_confirmation is False
-    assert proposal.message.startswith("Could you move")
+    assert proposal.message == "I need appointment tuesday move."
 
 
-def test_gateway_mode_rebuilds_a_language_with_no_rule_pack():
+def test_a_model_that_rewrites_falls_back_to_the_users_own_words():
+    # The regression that made the feature untrustworthy: a "nicer" sentence the
+    # speaker never said. It must never reach the pane.
     def complete(messages, **kwargs):
-        return FakeResult("予約を火曜日に変更していただけますか。")
-
-    proposal = propose.propose(
-        "予約 火曜日 変える 必要",
-        settings(reframe_backend="gateway", language="ja"),
-        complete=complete,
-    )
-    assert proposal.engine == "gateway"
-    assert proposal.message.startswith("予約")
-
-
-def test_a_bad_reply_falls_back_to_the_local_sentence():
-    def complete(messages, **kwargs):
-        return FakeResult("Could you move the appointment to the moon at 9?")
+        return FakeResult("Could you please move the appointment to Tuesday?")
 
     proposal = propose.propose(
         "i need appointment tuesday move",
@@ -165,8 +176,8 @@ def test_a_bad_reply_falls_back_to_the_local_sentence():
         complete=complete,
     )
     assert proposal.engine == "local"
-    assert "moon" not in proposal.message
-    assert proposal.message == "Could you move the appointment to Tuesday, please?"
+    assert proposal.reason == "local_fallback"
+    assert proposal.message == "I need appointment tuesday move."
 
 
 def test_gateway_mode_without_a_model_stays_local():
@@ -176,7 +187,6 @@ def test_gateway_mode_without_a_model_stays_local():
         complete=None,
     )
     assert proposal.engine == "local"
-    assert proposal.message.startswith("Could you")
 
 
 def test_an_empty_transcript_is_not_sent_anywhere():

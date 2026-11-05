@@ -100,7 +100,8 @@ the only path on which text leaves the machine during normal use.
 | **Never leaves** | Audio (it is never stored, so there is nothing to send), your dictionary, your saved phrases, the session history, any identifier for you. |
 | **Who receives it** | The provider configured in Hermes for your active model (here: DeepSeek). ClearVoice holds no key of its own and never sees one. |
 | **Retention** | Governed by that provider, not by this plugin. That is the trade you are making when you switch it on; with rules (the default) nothing leaves at all. |
-| **What comes back** | One sentence, which is **checked before you see it**: same script as the language you chose, no digits you did not say, at least one word of what you did say, no markdown, one sentence, under 240 characters. Anything else is discarded and the on-device sentence is shown instead. |
+| **What comes back** | Your words, tidied at most. The reply is **checked before you see it**: every word must appear, in order, in the transcript — so nothing can be added, replaced or reordered — plus same script, one sentence, under 240 characters. Anything else is discarded and the on-device sentence is shown instead. |
+| **What it may not do** | Rewrite your sentence. An earlier version asked the model to "make it clear and polite"; it paraphrased and sometimes invented content, so that behaviour is removed and the check above makes it impossible. |
 
 The pane says which engine produced the sentence ("Rebuilt by your model · $0.00012"
 or nothing, meaning on-device), and says so plainly when a model reply was

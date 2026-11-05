@@ -1,5 +1,30 @@
 # Worklog
 
+## 2026-11-05 (v0.6.1) — the model is no longer allowed to improve the sentence
+
+**Reported, after trying gateway mode:** "it hallucinate a lot, it's going far from
+what I told me… there's no way I deliver it in that state."
+
+Correct, and the fault is a design choice, not a bug: asking a chat model to make
+fragmented speech "clear and polite" guarantees paraphrase. Removed:
+
+- **default style is now `verbatim`** — the pane offers back what was heard, tidied
+  at the edges. `courteous` (the rebuild) is opt-in, and only in the 7 languages
+  with a grammar pack.
+- **the model pass may only clean**: remove hesitations, fix capital and final
+  punctuation. Enforced by a subsequence check — every reply word must appear, in
+  order, in the transcript. "Could you move the appointment to Tuesday, please?"
+  for "appointment tuesday move" now *fails* and the user's own words stand.
+- tests assert the refusals: added word, reordered words, invented politeness,
+  dropped more than 40% of the words.
+
+Also written down for the record: this does not touch recognition accuracy, which is
+a speech-model and speaker-adaptation problem (Voiceitt: 50–200 recorded cards;
+Project Relate: 500 phrases; Euphonia: 3–4 min of audio). Our dictionary is the
+cheap local approximation; real adaptation is the next honest step, not a promise.
+
+181 tests, validate green, v0.6.1.
+
 ## 2026-11-05 (v0.6.0) — the user's own model can rebuild the sentence, with a hard gate
 
 **Asked:** "would it fix our problem if we used the LLM connected to Hermes

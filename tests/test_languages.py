@@ -134,7 +134,8 @@ def test_unknown_style_falls_back_to_courteous():
 def test_rewrite_style_comes_from_settings():
     settings = Settings.from_mapping({"rewrite_style": "literal"})
     assert settings.rewrite_style == "literal"
-    assert Settings.from_mapping({"rewrite_style": "nonsense"}).rewrite_style == "courteous"
+    # The default is the user's own words: rewriting is an explicit choice.
+    assert Settings.from_mapping({"rewrite_style": "nonsense"}).rewrite_style == "verbatim"
 
 
 # --- optional phonemizers --------------------------------------------------
