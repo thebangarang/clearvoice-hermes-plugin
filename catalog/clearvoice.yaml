@@ -1,8 +1,7 @@
 name: clearvoice
 repo: https://github.com/thebangarang/clearvoice-hermes-plugin
-# Must be the full 40-character commit SHA of the reviewed tree.
-# Replace with the commit this submission pins (see "Before you open the PR").
-sha: 0000000000000000000000000000000000000000
+# Full 40-character commit SHA of the reviewed tree.
+sha: 035419c67688e2a7a6db4bce35e493527f04a43d
 description: >-
   Privacy-first push-to-talk speech-clarity bridge for people whose speech is hard to understand.
   Hold a button, speak naturally, and ClearVoice shows one clear sentence in large text before
