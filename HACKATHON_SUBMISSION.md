@@ -6,8 +6,9 @@
 | | |
 |---|---|
 | **Plugin name** | `clearvoice` |
-| **Version** | 0.1.0 |
+| **Version** | 0.2.0 |
 | **Licence** | MIT |
+| **Languages** | 17 — English, French, German, Spanish, Portuguese, Italian, Dutch, Polish, Russian, Turkish, Arabic, Hindi, Japanese, Mandarin, Korean, Thai, Vietnamese |
 | **Category** | accessibility / speech |
 | **Hermes surfaces used** | `ctx.register_tool`, `ctx.register_command`, Desktop SDK (pane, route, sidebar nav, palette, status bar), `ctx.rest` → `dashboard/plugin_api.py` |
 | **Capabilities requested** | none |
@@ -123,6 +124,19 @@ and both default to **off**.
   after the model is warm. Audio is a NumPy array turned into WAV bytes in
   memory and played from a `data:` URL in the pane. The CC BY-NC 40m checkpoints
   are never referenced.
+- **Seventeen languages, two local engines, one rule.** English is voiced by
+  Phonon 31m (Apache-2.0) with 37 catalog voices. Every other language is voiced
+  by Piper (MIT runtime) with a per-language model — 108 voices indexed, bundled
+  offline so the picker works without a network. Phonon's multilingual checkpoint
+  is CC BY-NC, so it is not used: the licence decides the architecture, not the
+  other way round. Recognition is multilingual Whisper, and an `.en` model is
+  swapped out automatically for any non-English language, because a `.en` model
+  does not fail on French — it invents fluent nonsense, the worst possible
+  failure for someone whose speech is already misunderstood.
+- **The rewrite is a choice, not a policy.** `courteous` (default) rebuilds a
+  polite request, `literal` keeps your words in a plain order, `verbatim` changes
+  nothing but the edges. The user picks; the pane shows "You said: …" underneath
+  either way, so the transformation is never hidden.
 - **The agent tool is deliberately two-step.** `clearvoice_speak` returns a
   `needs_confirmation` payload instead of speaking unless
   `confirm_required: false`, and `POST /speak` separately requires
@@ -196,12 +210,12 @@ Validation passed.
 
 ```
 Plugin Doctor: /home/hermes/projects/Clearvoice-hermes-plugin
-  manifest: clearvoice 0.1.0 (standalone)
+  manifest: clearvoice 0.2.0 (standalone)
   OK: runtime discovery, manifest parsing, import, and registration passed
   registrations: 1 tool(s), 0 hook(s)
 ```
 
-Unit tests: `38 passed`. End-to-end smoke test (real models, no microphone):
+Unit tests: `55 passed`. End-to-end smoke test (real models, no microphone):
 
 ```
 1. synthesizing with on-device Phonon ... 138284 bytes, 2.88s of speech, 1310 ms
@@ -262,6 +276,8 @@ to the catalog before validation passes; it passes.
 | STT works on ≥ 1 backend | ✅ local faster-whisper, verified end to end |
 | Intent clarification works | ✅ rules, confidence, candidates, forced confirmation on consequential words |
 | Phonon local TTS works | ✅ Apache-2.0 31m on CPU, verified end to end |
+| Multilingual works | ✅ 17 languages; Piper for the 16 non-English ones, multilingual Whisper for recognition |
+| Voice picker works | ✅ 37 English Phonon voices + 108 Piper voices, indexed offline |
 | Gradium backend implemented, off by default | ✅ triple-gated (switch + backend + key), refuses before any socket |
 | No audio/transcript persisted | ✅ audit-hook test |
 | `validate --install-deps` passes | ✅ output above |

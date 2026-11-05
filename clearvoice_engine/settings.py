@@ -11,9 +11,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Mapping
 
+from . import langs
+
 STT_BACKENDS = ("local", "gradium")
-TTS_BACKENDS = ("phonon", "gradium")
-LANGUAGES = ("en", "fr", "de", "es", "pt")
+TTS_BACKENDS = ("auto", "phonon", "piper", "gradium")
+REWRITE_STYLES = ("courteous", "literal", "verbatim")
 
 
 def _as_bool(value: Any, default: bool = False) -> bool:
@@ -34,10 +36,11 @@ def _as_choice(value: Any, allowed: tuple[str, ...], default: str) -> str:
 @dataclass(frozen=True)
 class Settings:
     stt_backend: str = "local"
-    tts_backend: str = "phonon"
+    tts_backend: str = "auto"
     language: str = "en"
-    whisper_model: str = "tiny.en"
-    phonon_voice: str = "default"
+    voice: str = ""
+    rewrite_style: str = "courteous"
+    whisper_model: str = ""
     gradium_voice_id: str = ""
     allow_cloud: bool = False
     has_gradium_key: bool = False
@@ -45,12 +48,14 @@ class Settings:
     @classmethod
     def from_mapping(cls, mapping: Mapping[str, Any] | None, *, has_key: bool = False) -> "Settings":
         data = dict(mapping or {})
+        language = langs.get(data.get("language"))
         return cls(
             stt_backend=_as_choice(data.get("stt_backend"), STT_BACKENDS, "local"),
-            tts_backend=_as_choice(data.get("tts_backend"), TTS_BACKENDS, "phonon"),
-            language=_as_choice(data.get("language"), LANGUAGES, "en"),
-            whisper_model=str(data.get("whisper_model") or "tiny.en").strip() or "tiny.en",
-            phonon_voice=str(data.get("phonon_voice") or "default").strip() or "default",
+            tts_backend=_as_choice(data.get("tts_backend"), TTS_BACKENDS, "auto"),
+            language=language.code,
+            voice=str(data.get("voice") or "").strip(),
+            rewrite_style=_as_choice(data.get("rewrite_style"), REWRITE_STYLES, "courteous"),
+            whisper_model=str(data.get("whisper_model") or "").strip(),
             gradium_voice_id=str(data.get("gradium_voice_id") or "").strip(),
             allow_cloud=_as_bool(data.get("allow_cloud"), False),
             has_gradium_key=has_key or _as_bool(data.get("has_gradium_key"), False),
@@ -59,25 +64,63 @@ class Settings:
     # --- derived state -----------------------------------------------------
 
     @property
+    def language_info(self) -> langs.Language:
+        return langs.get(self.language)
+
+    @property
+    def resolved_tts_engine(self) -> str:
+        """Which engine will actually speak: auto = Phonon for English, Piper otherwise."""
+        if self.tts_backend in ("phonon", "piper", "gradium"):
+            return self.tts_backend
+        return self.language_info.tts_engine
+
+    @property
+    def resolved_voice(self) -> str:
+        if self.voice:
+            return self.voice
+        if self.resolved_tts_engine == "phonon":
+            return "default"
+        if self.resolved_tts_engine == "gradium":
+            return self.gradium_voice_id or "default"
+        return self.language_info.default_voice
+
+    @property
+    def stt_model(self) -> str:
+        return langs.whisper_model_for(self.language_info, self.whisper_model)
+
+    @property
     def network_used(self) -> bool:
         """True only when a cloud backend is both allowed and selected."""
         if not self.allow_cloud:
             return False
-        return self.stt_backend == "gradium" or self.tts_backend == "gradium"
+        return self.stt_backend == "gradium" or self.resolved_tts_engine == "gradium"
 
     def status(self) -> dict[str, Any]:
         """The Privacy Mode panel's data — one source of truth for the UI."""
+        language = self.language_info
+        engine = self.resolved_tts_engine
+        engine_labels = {
+            "phonon": "Phonon 31m (Apache-2.0)",
+            "piper": "Piper (local)",
+            "gradium": "Gradium cloud",
+        }
         return {
             "stt_backend": self.stt_backend,
-            "tts_backend": self.tts_backend,
+            "tts_backend": engine,
             "stt_label": "On-device (faster-whisper)" if self.stt_backend == "local" else "Gradium cloud",
-            "tts_label": "On-device (Phonon 31m)" if self.tts_backend == "phonon" else "Gradium cloud",
-            "language": self.language,
-            "whisper_model": self.whisper_model,
+            "tts_label": engine_labels.get(engine, engine),
+            "voice": self.resolved_voice,
+            "language": language.code,
+            "language_label": language.label,
+            "language_native": language.native,
+            "languages": [lang.public() for lang in langs.all_languages()],
+            "rewrite_style": self.rewrite_style,
+            "stt_model": self.stt_model,
             "allow_cloud": self.allow_cloud,
             "has_gradium_key": self.has_gradium_key,
             "network": "Cloud optional" if self.allow_cloud else "Offline",
             "network_active": self.network_used,
+            "model_source": "huggingface.co (weights only, once per model)",
             "retention": "Session only",
             "retention_line": "Audio processed this session only. Nothing saved.",
         }

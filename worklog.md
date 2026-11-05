@@ -1,5 +1,50 @@
 # Worklog
 
+## 2026-11-05 (later) — v0.2.0: 17 languages, voice picker, rewrite styles
+
+**Trigger:** the plugin worked in English but did nothing in French; the user
+asked for all languages, including Japanese/Chinese/Korean/Thai/Hindi, plus more
+"speak it" voices, and pushed back on the courteous rewrite changing his sentence.
+
+**Root cause of the French failure (three separate causes, only one of them
+architectural):**
+
+1. STT defaulted to `tiny.en`, an English-only model. A `.en` model does not
+   error on French — it returns fluent nonsense.
+2. `ptts.TTS(lang='fr')` loads the **same English checkpoint** (verified:
+   `model.languages == ['en']`, warning *"text is normalized as fr, but the model
+   was trained for en"*).
+3. Phonon's actual multilingual checkpoint (40m) is CC BY-NC, so it is not
+   shippable in an MIT plugin.
+
+**Built:**
+
+- `clearvoice_engine/langs.py` — 17 languages, each mapped to an STT model and a
+  voice engine; `whisper_model_for()` swaps a `.en` model for a multilingual one.
+- `clearvoice_engine/piper.py` — Piper engine (MIT), atomic voice download into
+  the plugin data dir, in-memory load, cached per voice.
+- `clearvoice_engine/data/piper_voices.json` — 108 voices across the 17
+  languages, generated once by `scripts/build_piper_index.py` so the picker works
+  offline.
+- `tts.py` — engine routing (Phonon for English, Piper elsewhere, Gradium on
+  request), catalog voices with an in-process cache, and a refusal when someone
+  forces Phonon at a non-English language.
+- `intent.py` — three rewrite styles (`courteous`, `literal`, `verbatim`).
+- `dashboard/plugin_api.py` — `/languages`, `/voices`, per-request overrides.
+- `desktop/plugin.js` — language + voice + rewrite selectors, persisted in
+  `ctx.storage`, never in `config.yaml`.
+- 17 new tests (`tests/test_languages.py`), README/PRIVACY/SECURITY/SUBMISSION
+  updated, version 0.2.0.
+
+**Verified:** 55 tests pass; `validate --install-deps` passes (now 4 deps);
+`doctor` reports `1 tool(s), 0 hook(s)`; all 17 Piper voices downloaded and
+measured (see `scripts/lang_probe.py`).
+
+**Open:** `hermes gateway restart` again (the dependency set changed, so the
+running gateway is stale a second time), then record the multilingual demo.
+
+---
+
 ## 2026-11-05 — Built, validated, verified end to end
 
 **Started from:** `clearvoice_hermes_hackathon_build_brief.md` (hackathon build

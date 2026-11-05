@@ -36,7 +36,7 @@ _ROOT = str(Path(__file__).resolve().parent.parent)
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 
-from clearvoice_engine import audio, cloud, intent, runtime, stt, tts  # noqa: E402
+from clearvoice_engine import audio, cloud, intent, langs, piper, runtime, stt, tts  # noqa: E402
 from clearvoice_engine.settings import Settings  # noqa: E402
 
 logger = logging.getLogger(__name__)
@@ -63,7 +63,7 @@ def _get_secret(name: str) -> str | None:
         return None
 
 
-def _settings() -> Settings:
+def _settings(overrides: dict[str, Any] | None = None) -> Settings:
     mapping: dict[str, Any] = {}
     try:
         from hermes_cli.config import load_config_readonly
@@ -74,13 +74,24 @@ def _settings() -> Settings:
         )
     except Exception as exc:  # older core, or config unreadable
         logger.debug("clearvoice: settings unavailable: %s", exc)
+    # Per-request choices from the pane (language, voice, rewrite style) win over
+    # the saved settings for that one request. The pane persists its own choice in
+    # ctx.storage, so the plugin never writes config.yaml.
+    if overrides:
+        for key in ("language", "voice", "rewrite_style", "stt_backend", "tts_backend", "whisper_model"):
+            value = overrides.get(key)
+            if isinstance(value, str) and value.strip():
+                mapping = {**mapping, key: value.strip()}
     return Settings.from_mapping(mapping, has_key=bool(_get_secret(GRADIUM_KEY_ENV)))
 
 
-def _local_state() -> dict[str, Any]:
+def _local_state(settings: Settings) -> dict[str, Any]:
+    engine = settings.resolved_tts_engine
     return {
-        "local_stt_available": stt.local_model_available("tiny.en"),
-        "local_tts_available": tts.phonon_available(),
+        "local_stt_available": stt.local_model_available(settings.stt_model),
+        "local_tts_available": tts.phonon_available() if engine == "phonon" else piper.available(),
+        "phonon_available": tts.phonon_available(),
+        "piper_available": piper.available(),
     }
 
 
@@ -93,9 +104,24 @@ def _local_state() -> dict[str, Any]:
 async def status() -> dict[str, Any]:
     settings = _settings()
     payload = settings.status()
-    payload.update(_local_state())
+    payload.update(_local_state(settings))
     payload.update(runtime.status_payload())
     return payload
+
+
+@router.get("/languages")
+async def languages() -> dict[str, Any]:
+    """What the picker offers, and which engine will voice each language."""
+    return {"languages": [lang.public() for lang in langs.all_languages()]}
+
+
+@router.get("/voices")
+async def voices(language: str | None = None) -> dict[str, Any]:
+    """Every voice available for a language: Phonon catalog (English) or Piper."""
+    code = language or _settings().language
+    if not language:
+        return {"language": code, "voice": _settings().resolved_voice, "voices": tts.voices_for(code)}
+    return {"language": langs.get(code).code, "voice": "", "voices": tts.voices_for(code)}
 
 
 def _decode_clip(payload: dict[str, Any]) -> bytes:
@@ -115,7 +141,7 @@ def _decode_clip(payload: dict[str, Any]) -> bytes:
 @router.post("/transcribe")
 async def transcribe(payload: dict[str, Any]) -> dict[str, Any]:
     """Clip in, transcript plus proposed sentence out. One round trip."""
-    settings = _settings()
+    settings = _settings(payload)
     clip = _decode_clip(payload)
 
     try:
@@ -134,7 +160,7 @@ async def transcribe(payload: dict[str, Any]) -> dict[str, Any]:
         logger.warning("clearvoice: transcribe failed (%s)", type(exc).__name__)
         raise HTTPException(status_code=500, detail="Transcription failed. Try again.") from None
 
-    proposal = intent.reframe(result.text)
+    proposal = intent.reframe(result.text, settings.rewrite_style)
     runtime.session.add(result.text, proposal.message, result.backend)
     return {
         "transcript": result.text,
@@ -151,7 +177,7 @@ async def clarify(payload: dict[str, Any]) -> dict[str, Any]:
     text = str((payload or {}).get("transcript") or "").strip()
     if not text:
         raise HTTPException(status_code=400, detail="Nothing to clarify.")
-    proposal = intent.reframe(text)
+    proposal = intent.reframe(text, _settings(payload).rewrite_style)
     return {"proposal": proposal.public()}
 
 
@@ -166,9 +192,9 @@ async def speak(payload: dict[str, Any]) -> dict[str, Any]:
         # The pane must set this after the user presses "Speak it".
         raise HTTPException(status_code=409, detail="Show the sentence and let the user approve it first.")
 
-    settings = _settings()
+    settings = _settings(body)
     backend = str(body.get("backend") or settings.tts_backend)
-    voice = str(body.get("voice_profile") or "") or None
+    voice = str(body.get("voice_profile") or body.get("voice") or "") or None
 
     try:
         result = await asyncio.to_thread(

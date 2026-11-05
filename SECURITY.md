@@ -12,8 +12,8 @@ customer security team should be able to check against the code.
 | Background process / daemon | **No** | No threads outliving a request, no timers, no queue workers. |
 | Cron / scheduled job | **No** | — |
 | Subprocess | **One** | `ffmpeg` with a constant argv, audio on stdin, PCM on stdout. No shell, no filename, no interpolation of any external string. |
-| Filesystem reads | **One file** | `phrases.json` in the plugin's own data directory (via Hermes's `plugin_data_dir`). No other path is read. |
-| Filesystem writes | **One file** | Same file, same directory, written only by an explicit **Save phrase** action or `POST /phrases` with `explicit: true`. |
+| Filesystem reads | **Two kinds** | `phrases.json` in the plugin's own data directory, and the voice/model files inside that same directory (plus Hugging Face's own cache for recognisers). No other path is read. |
+| Filesystem writes | **Its own data directory only** | `phrases.json` (explicit save only) and downloaded voice models under `models/piper/`, written to a `.part` sibling and renamed atomically. |
 | Outbound network | **Two hosts, opt-in** | `huggingface.co` for one-time model downloads; `api.gradium.ai` only when cloud speech is enabled *and* selected *and* a key is present. |
 | Credentials | **Read-only, scoped** | `CLEARVOICE_GRADIUM_API_KEY` through `agent.secret_scope.get_secret`. Never logged, never echoed, never stored, never displayed. |
 | Hermes core modification | **None** | Only public `ctx.register_tool` / `register_command`. `hermes plugins validate` "no core override" passes. |
@@ -86,22 +86,27 @@ Declared with upper bounds in `pyproject.toml`:
 
 ```
 ptts>=0.6.0,<0.7
+piper-tts>=1.8,<2
 faster-whisper>=1.2.1,<1.3
 numpy>=1.26,<3
 ```
 
 `ptts` is a Rust extension (`pyo3`) shipped as a wheel; it executes no shell and
-downloads weights only from the documented Hugging Face repo. `faster-whisper`
-runs `ctranslate2` locally. Neither opens a listening socket on its own during
-normal use. Models are fetched over HTTPS; pinning a revision is available
-upstream (`hf://owner/name@revision`) if a user wants a frozen supply chain.
+downloads weights only from the documented Hugging Face repo. `piper-tts` runs
+ONNX locally and phonemises through **espeak-ng**, which is GPL-3.0 — it is a
+separately installed dependency, never vendored into this MIT repository, and the
+disclosure is here because a downstream redistributor needs it. Piper voice
+models are downloaded per language from `rhasspy/piper-voices` and carry their
+own per-voice licence (CC BY 4.0, MIT, …); the plugin ships only the index, not
+the weights. `faster-whisper` runs `ctranslate2` locally. None of them opens a
+listening socket during normal use, and model fetches are HTTPS.
 
 ## 7. Verifiable claims
 
 ```bash
 hermes plugins validate ~/.hermes/plugins/clearvoice --install-deps   # catalog gate
 hermes plugins doctor   ~/.hermes/plugins/clearvoice                  # real loader
-pytest                                                                # 38 tests
+pytest                                                                # 55 tests
 python scripts/smoke_test.py                                          # real models, in memory
 python scripts/api_selftest.py                                        # every REST route, real audio
 ```

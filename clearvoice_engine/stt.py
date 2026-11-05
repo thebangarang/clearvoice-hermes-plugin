@@ -73,7 +73,8 @@ def reset_local_models() -> None:
 
 
 def transcribe_local(samples: np.ndarray, settings: Settings) -> TranscriptionResult:
-    model = _load_local_model(settings.whisper_model)
+    model_name = settings.stt_model
+    model = _load_local_model(model_name)
     try:
         segments, info = model.transcribe(
             samples,
@@ -89,7 +90,7 @@ def transcribe_local(samples: np.ndarray, settings: Settings) -> TranscriptionRe
         text=text,
         backend="local",
         language=getattr(info, "language", settings.language) or settings.language,
-        model=settings.whisper_model,
+        model=model_name,
         duration_s=float(getattr(info, "duration", 0.0) or 0.0),
     )
 

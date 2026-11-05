@@ -89,8 +89,8 @@ def _read_settings(ctx):
     from clearvoice_engine.settings import Settings
 
     keys = (
-        "stt_backend", "tts_backend", "language", "whisper_model",
-        "phonon_voice", "gradium_voice_id", "allow_cloud",
+        "stt_backend", "tts_backend", "language", "voice", "rewrite_style",
+        "whisper_model", "gradium_voice_id", "allow_cloud",
     )
     mapping = {}
     for key in keys:
@@ -224,7 +224,13 @@ def _handle_command(raw_args: str, *, ctx=None, **kwargs) -> str:
 
         from clearvoice_engine import intent
 
-        proposal = intent.reframe(text)
+        style = "courteous"
+        if ctx is not None:
+            try:
+                style = _read_settings(ctx).rewrite_style
+            except Exception:
+                style = "courteous"
+        proposal = intent.reframe(text, style)
         lines = [f"Proposed: {proposal.message}"]
         if proposal.needs_confirmation:
             lines.append(f"Needs a check: {proposal.confirmation_question}")

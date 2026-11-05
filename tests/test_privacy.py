@@ -75,6 +75,8 @@ class _StubPhonon:
 def stubs(monkeypatch):
     monkeypatch.setattr(stt, "_load_local_model", lambda *a, **k: _StubWhisper())
     monkeypatch.setattr(tts, "_load_phonon", lambda *a, **k: _StubPhonon())
+    # No catalog fetch in tests: the real one is a network call.
+    monkeypatch.setattr(tts, "phonon_voices", lambda: [{"voice": "default", "name": "Default", "language": "en"}])
     yield
 
 
@@ -172,7 +174,8 @@ def test_cloud_backend_without_a_key_asks_for_one(monkeypatch):
 def test_defaults_are_local_and_offline():
     settings = Settings.from_mapping({})
     assert settings.stt_backend == "local"
-    assert settings.tts_backend == "phonon"
+    assert settings.tts_backend == "auto"
+    assert settings.resolved_tts_engine == "phonon"  # English
     assert settings.allow_cloud is False
     assert settings.network_used is False
     status = settings.status()
@@ -184,7 +187,7 @@ def test_defaults_are_local_and_offline():
 def test_unknown_backend_values_fall_back_to_local():
     settings = Settings.from_mapping({"stt_backend": "banana", "tts_backend": "cloud-magic", "allow_cloud": "yes"})
     assert settings.stt_backend == "local"
-    assert settings.tts_backend == "phonon"
+    assert settings.tts_backend == "auto"
     assert settings.allow_cloud is True
 
 

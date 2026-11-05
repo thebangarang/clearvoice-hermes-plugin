@@ -1,0 +1,141 @@
+"""Piper — the MIT-licensed local voice engine for every non-English language.
+
+Phonon's only permissively-licensed checkpoint is English, so ClearVoice voices
+French, German, Japanese, Thai and the rest with Piper: an ONNX runtime (MIT)
+plus one voice model per language (~60–120 MB, downloaded once, cached next to
+the plugin's data directory).
+
+The download is the single network call this engine makes, it fetches weights
+only, and it happens the first time a voice is used.
+"""
+
+from __future__ import annotations
+
+import os
+import threading
+import urllib.error
+import urllib.request
+from pathlib import Path
+
+from . import audio, langs
+
+
+class PiperError(RuntimeError):
+    """Message is safe to show to the user."""
+
+
+_lock = threading.Lock()
+_loaded: dict[str, object] = {}
+
+
+def models_dir() -> Path:
+    from . import runtime
+
+    path = runtime.data_dir() / "models" / "piper"
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def available() -> bool:
+    try:
+        import piper  # noqa: F401
+    except Exception:
+        return False
+    return True
+
+
+def _download(url: str, target: Path) -> None:
+    """Stream one file to a temp sibling, then rename. Never a half-written model."""
+    if target.exists() and target.stat().st_size > 0:
+        return
+    tmp = target.with_suffix(target.suffix + ".part")
+    request = urllib.request.Request(url, headers={"User-Agent": "ClearVoice/0.2.0"})
+    try:
+        with urllib.request.urlopen(request, timeout=120) as response, open(tmp, "wb") as handle:
+            while True:
+                chunk = response.read(1 << 20)
+                if not chunk:
+                    break
+                handle.write(chunk)
+    except (urllib.error.URLError, TimeoutError) as exc:
+        tmp.unlink(missing_ok=True)
+        raise PiperError(
+            "The voice file could not be downloaded. Check the connection, then try again."
+        ) from exc
+    if tmp.stat().st_size < 1024:
+        tmp.unlink(missing_ok=True)
+        raise PiperError("The voice download was incomplete. Try again.")
+    os.replace(tmp, target)
+
+
+def ensure_voice(key: str) -> tuple[Path, Path]:
+    """Download (once) and return the ONNX model and its config."""
+    meta = langs.piper_voice(key)
+    if meta is None:
+        raise PiperError(f"Unknown voice '{key}'.")
+    base = models_dir()
+    model = base / f"{key}.onnx"
+    config = base / f"{key}.onnx.json"
+    url = langs.piper_url(key)
+    _download(url, model)
+    _download(url + ".json", config)
+    return model, config
+
+
+def _load(key: str):
+    cached = _loaded.get(key)
+    if cached is not None:
+        return cached
+    try:
+        from piper import PiperVoice
+    except Exception as exc:  # pragma: no cover - install dependent
+        raise PiperError(
+            "The on-device non-English voice engine is not installed. Run "
+            "`hermes plugins validate <plugin> --install-deps`, then reload ClearVoice."
+        ) from exc
+    model, _config = ensure_voice(key)
+    try:
+        voice = PiperVoice.load(str(model))
+    except Exception as exc:
+        raise PiperError("The voice file could not be loaded. Remove it from the plugin's models folder and try again.") from exc
+    with _lock:
+        _loaded[key] = voice
+    return voice
+
+
+def voices(language_code: str | None = None) -> list[dict]:
+    """The picker's list: key, label, quality, size, speakers."""
+    out = []
+    for meta in langs.piper_voices(language_code):
+        label = f"{meta['name']} ({meta['region']}, {meta['quality']})"
+        out.append({**meta, "engine": "piper", "label": label})
+    return out
+
+
+def synthesize(text: str, key: str, language_code: str | None = None) -> tuple[bytes, int, str]:
+    """Synthesize into WAV bytes. Returns (wav, sample_rate, voice_key)."""
+    from . import langs as _langs
+
+    language = _langs.get(language_code)
+    meta = _langs.piper_voice(key)
+    if meta is None or meta.get("family") != language.code:
+        # Fall back to that language's default voice rather than speaking French
+        # with a Japanese model.
+        key = language.default_voice
+        meta = _langs.piper_voice(key)
+    voice = _load(key)
+    try:
+        chunks = [chunk.audio_int16_bytes for chunk in voice.synthesize(text)]
+    except Exception as exc:
+        raise PiperError("The voice could not speak that sentence. Try again, or edit the text.") from exc
+    pcm = b"".join(chunks)
+    if not pcm:
+        raise PiperError("The voice produced no audio. Try again.")
+    sample_rate = int(getattr(voice.config, "sample_rate", 22050))
+    wav = audio.pcm16_to_wav_bytes(pcm, sample_rate)
+    return wav, sample_rate, key
+
+
+def reset() -> None:
+    with _lock:
+        _loaded.clear()

@@ -5,7 +5,8 @@
 ClearVoice is a Hermes Agent plugin: a push-to-talk speech-clarity bridge for
 people whose speech may be hard for others to understand — aphasia, Parkinson's,
 cerebral palsy, ALS, stuttering, a stroke recovery, or a temporary voice
-impairment such as after surgery or with a bad cold.
+impairment such as after surgery or with a bad cold. It works in **17 languages**,
+and both the recognition and the voice run on your own machine.
 
 You hold a big button, speak however you can, and let go. ClearVoice writes down
 what it heard, proposes one clear sentence, **shows it to you in large text
@@ -136,7 +137,34 @@ The full statement is in [PRIVACY.md](PRIVACY.md).
 
 ---
 
-## Voice backends
+## Languages and voices
+
+ClearVoice speaks and understands **17 languages**, all on-device:
+
+| | |
+|---|---|
+| **Languages** | English, French, German, Spanish, Portuguese, Italian, Dutch, Polish, Russian, Turkish, Arabic, Hindi, Japanese, Mandarin Chinese, Korean, Thai, Vietnamese |
+| **Recognition** | faster-whisper, multilingual (`tiny`/`base`/`small`). An `.en`-only model is never left in place for a non-English language — it would return fluent nonsense instead of an error, which is the worst possible failure here |
+| **Voice, English** | Phonon 31m (Apache-2.0), **37 catalog voices** — Zoey, Juniper, Everly, Harper, Hadley, Delia … downloaded once per voice |
+| **Voice, other 16** | **Piper** (MIT runtime). 108 voice models in the bundled index: 7 French, 10 German, 9 Spanish, 4 Chinese, 3 Hindi, 3 Vietnamese, and one each for Japanese, Korean and Thai |
+| **Voice picker** | In the pane: pick a language, then any voice for it. The choice is remembered (`ctx.storage`), never written into `config.yaml` |
+
+Why two engines: Gradium's only permissively-licensed Phonon checkpoint is
+English — the multilingual 40m model is **CC BY-NC**, which a commercial plugin
+cannot ship. Piper fills every other language under MIT. Neither makes a network
+call while you speak; each engine downloads a model once, on first use, and
+says so in the privacy badge.
+
+Measured on a small desktop CPU, no GPU: French sentence → **0.26 s** of
+synthesis at 22 kHz (Piper), Japanese/Thai/Korean the same engine and order of
+magnitude. First use of a language downloads its voice (~60–80 MB) and the first
+utterance in that language pays a one-time model load.
+
+Fair warning on quality: English (Phonon) is noticeably more natural than the
+non-English Piper voices, and the single-voice languages (Japanese, Korean, Thai)
+are the weakest of the set. They are intelligible; they are not premium. That is
+a limitation of the permissive-licence landscape, not a configuration mistake,
+and it is stated here rather than discovered in a demo.
 
 ### Local Phonon — default, on-device
 
@@ -295,9 +323,13 @@ nothing lands on disk.
 
 ## Limitations (read these)
 
-- **English-first.** Phonon 31m is English. The `ptts` runtime supports other
-  languages via other checkpoints, and the language setting is wired through, but
-  only English is tested here.
+- **17 languages, uneven quality.** English (Phonon) is the best voice here.
+  French, German, Spanish, Portuguese, Italian, Dutch, Polish, Russian, Turkish,
+  Arabic, Hindi, Chinese and Vietnamese use Piper `medium` voices and are good
+  for clear speech. Japanese, Korean and Thai have exactly one voice each and are
+  the weakest — intelligible, not premium. Recognition uses multilingual Whisper:
+  `base` by default for non-English, `small` for the scripts Whisper handles
+  worst, both selectable.
 - **The reframer is not an LLM.** It handles fragmented, telegraphic speech well
   and long meandering sentences poorly. It reorders known slot patterns (verb,
   object, time) rather than understanding arbitrary meaning. When it is unsure it
@@ -307,9 +339,10 @@ nothing lands on disk.
   this plugin exists to avoid.
 - **CPU only in this version.** No GPU path, no streaming TTS. Time-to-first-word
   is roughly half a second to a second and a half on a small desktop.
-- **The voice is a single synthetic voice.** Voice choice is exposed, but the
-  Apache-2.0 checkpoint ships one built-in voice; the wider Gradium catalogue
-  requires their cloud and a key.
+- **Voices are chosen, not cloned.** 37 English Phonon voices and 108 Piper
+  voices across 16 languages, but no voice cloning and no custom voice training:
+  Gradium's cloning runs in the cloud and needs an account, which is the opposite
+  of this plugin's defaults.
 - **No conversation history**, so no "what did I say yesterday". That is the
   privacy promise, and it has a real cost.
 - **Cloud speech is not exercised by the test suite.** The Gradium paths are
@@ -350,7 +383,7 @@ nothing lands on disk.
 ```bash
 python -m venv .venv && . .venv/bin/activate
 pip install -e ".[dev]"
-pytest                        # 38 tests, no model download, no network
+pytest                        # 55 tests, no model download, no network
 python scripts/smoke_test.py  # real models, real audio, in memory
 hermes plugins validate . --install-deps
 hermes plugins doctor .
@@ -366,12 +399,15 @@ clearvoice-hermes-plugin/
 ├── clearvoice_engine/          # the pipeline, Hermes-free and importable
 │   ├── audio.py                # bytes in, arrays out — never a file
 │   ├── stt.py                  # local faster-whisper · Gradium cloud
-│   ├── tts.py                  # local Phonon 31m · Gradium cloud
-│   ├── intent.py               # deterministic reframer + confidence
+│   ├── tts.py                  # engine routing: Phonon (en) · Piper (others) · Gradium
+│   ├── langs.py                # the 17 languages, voice index, Whisper-model mapping
+│   ├── piper.py                # MIT local engine for every non-English language
+│   ├── intent.py               # deterministic reframer (3 rewrite styles) + confidence
 │   ├── privacy.py              # session store, saved phrases
 │   ├── cloud.py                # Gradium REST, gated and key-safe
 │   ├── settings.py             # validated settings view
-│   └── runtime.py              # in-process session state + audio outbox
+│   ├── runtime.py              # in-process session state + audio outbox
+│   └── data/piper_voices.json  # 108 voices, bundled so the picker works offline
 ├── dashboard/
 │   ├── manifest.json           # {"name": "clearvoice", "api": "plugin_api.py"}
 │   └── plugin_api.py           # the pane's REST backend

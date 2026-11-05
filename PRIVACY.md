@@ -35,6 +35,11 @@ pane also tears the stream down if it is unmounted mid-recording.
   show "You said: …" and offer *Speak it* again. **Clear session** empties it. A
   restart starts empty, because there is nowhere for it to have been written.
 - **Generated speech: never**, same as audio.
+- **Model and voice files: yes, but they are not your data.** The recognition
+  models (Hugging Face cache) and the Piper voices for the languages you use
+  (`<plugin data dir>/models/piper/`, ~60–120 MB each) are cached once so the
+  plugin works offline afterwards. They contain no speech, no transcript and no
+  identifier — they are the same files any other user downloads.
 - **Your saved phrases: yes, on purpose.** Only sentences you add with the
   **Save phrase** button, and only that text — never the recording it came from,
   never a history of when you used it. Stored at
@@ -53,7 +58,9 @@ traffic is the one-time model download the first time each model is used:
 | When | What goes out | Where |
 |---|---|---|
 | First transcription ever | A model download request (no audio, no text) | Hugging Face (`huggingface.co`) via faster-whisper |
-| First synthesis ever | A model download request (no audio, no text) | Hugging Face (`huggingface.co`) via ptts |
+| First synthesis ever, English | A model download request (no audio, no text) | Hugging Face (`huggingface.co`) via ptts |
+| First synthesis in another language | A voice-model download (no audio, no text) | Hugging Face (`huggingface.co`) via Piper |
+| Choosing a different voice | That voice's model or embedding (no audio, no text) | Hugging Face (`huggingface.co`) |
 
 After that, unplug the network and ClearVoice keeps working.
 
@@ -116,7 +123,8 @@ your vocabulary or remember yesterday's sentences — and it is taken deliberate
 |---|---|---|
 | `faster-whisper` + Whisper weights | local speech recognition | MIT |
 | `ffmpeg` | local audio decoding (pipes only) | LGPL/GPL (your distribution's build) |
-| `ptts` + Phonon 31m | local speech synthesis | MIT OR Apache-2.0 / Apache-2.0 |
+| `ptts` + Phonon 31m | local speech synthesis, English | MIT OR Apache-2.0 / Apache-2.0 |
+| `piper-tts` + `rhasspy/piper-voices` | local speech synthesis, other 16 languages | MIT runtime · per-voice models (CC BY 4.0, MIT, …) |
 | Gradium API | optional cloud speech, off by default | commercial, your own key |
 
 None of them receives data from this plugin unless the condition for that row in

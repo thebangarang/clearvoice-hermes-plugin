@@ -5,6 +5,57 @@ rejected. Newest first.
 
 ---
 
+## D-011 — The pane's language/voice choice is a per-request override (2026-11-05)
+
+**Decision.** The pane sends `language`, `voice` and `rewrite_style` in the
+request body; the backend merges them over the saved settings for that request
+only. The pane remembers its choice in `ctx.storage`.
+
+**Why.** The alternative was for the pane to write `config.yaml`, which means a
+renderer component asking for config-write authority it does not need, and two
+places that can disagree about the active language. Per-request overrides keep
+the write path where it belongs (a user editing Settings) and make the pane's
+choice auditable in the request that used it.
+
+**Cost.** A user who always wants French sets it once in Settings; a user who
+switches per conversation gets that for free.
+
+---
+
+## D-010 — Multilingual synthesis uses Piper, not Phonon multilingual (2026-11-05)
+
+**Decision.** English is voiced by Phonon 31m (Apache-2.0). The other 16
+languages are voiced by Piper (MIT runtime, per-voice models).
+
+**Why.** `ptts.TTS(lang='fr')` does not load a French model — it loads the same
+English checkpoint and only changes text normalisation (verified: `languages` is
+still `['en']`, and it warns "text is normalized as fr, but the model was trained
+for en"). The actual multilingual Phonon checkpoint is **CC BY-NC**, which cannot
+ship in an MIT plugin a business may deploy. Piper is MIT and covers every
+language asked for — including Japanese, Chinese, Korean, Thai and Hindi — with
+108 indexed voices.
+
+**Cost.** Two engines to maintain, and non-English quality is below Phonon's.
+Both are stated in the README rather than discovered by a user.
+
+---
+
+## D-009 — Three rewrite styles instead of one (2026-11-05)
+
+**Decision.** `courteous` (default) rebuilds a polite request; `literal` keeps
+the user's words in a plain order; `verbatim` changes only the edges.
+
+**Why.** The courteous rewrite is the brief's flow and reads best aloud, but the
+first real user reaction was "it feels like it's really changing the sentence" —
+and that instinct is correct: rewriting someone's words without their consent is
+exactly the failure mode this plugin is supposed to avoid. Making it a visible,
+persistent choice keeps the useful default and hands the authority back.
+
+**Cost.** One more control in the pane; a settings row that has to be understood.
+Worth it: "who decided what I said" must never be the software's answer.
+
+---
+
 ## D-008 — Deterministic reframer instead of an LLM call (2026-11-05)
 
 **Decision.** The "infer the intended message" step is a rule engine over the

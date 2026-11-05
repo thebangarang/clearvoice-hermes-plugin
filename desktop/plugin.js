@@ -26,6 +26,26 @@ const PANE_ROUTE = '/clearvoice'
 // The plugin's own REST namespace, injected during register().
 let REST = null
 
+// Plugin-scoped persistence (ctx.storage) — the pane's own choices, not config.
+let STORAGE = null
+
+function readPref(key, fallback) {
+  try {
+    const value = STORAGE && STORAGE.get(key)
+    return value === undefined || value === null || value === '' ? fallback : value
+  } catch (err) {
+    return fallback
+  }
+}
+
+function writePref(key, value) {
+  try {
+    if (STORAGE) STORAGE.set(key, value)
+  } catch (err) {
+    /* older host: the choice simply does not persist */
+  }
+}
+
 // Theme-aware tokens with sensible fallbacks (the app paints the background).
 const C = {
   text: 'var(--ui-text-primary, var(--foreground, inherit))',
@@ -323,6 +343,113 @@ function PrivacyBadge({ status, onClear, clearing }) {
 }
 
 // ---------------------------------------------------------------------------
+// LanguageRow — language, voice and rewrite style, persisted in ctx.storage.
+// ---------------------------------------------------------------------------
+
+const LANG_LABELS = {
+  en: 'English', fr: 'Français', de: 'Deutsch', es: 'Español', pt: 'Português',
+  it: 'Italiano', nl: 'Nederlands', pl: 'Polski', ru: 'Русский', tr: 'Türkçe',
+  ar: 'العربية', hi: 'हिन्दी', ja: '日本語', zh: '中文', ko: '한국어', th: 'ไทย', vi: 'Tiếng Việt'
+}
+
+const REWRITE_LABELS = {
+  courteous: 'Courteous',
+  literal: 'Literal',
+  verbatim: 'Verbatim'
+}
+
+function selectStyle() {
+  return {
+    minHeight: '44px',
+    width: '100%',
+    borderRadius: '10px',
+    border: `1px solid ${C.border}`,
+    background: 'transparent',
+    color: C.text,
+    fontSize: '1rem',
+    padding: '6px 8px',
+    fontFamily: 'inherit',
+    cursor: 'pointer'
+  }
+}
+
+function LanguageRow({
+  language,
+  voice,
+  voices,
+  rewriteStyle,
+  onLanguage,
+  onVoice,
+  onRewrite,
+  busy
+}) {
+  const languageOptions = Object.entries(LANG_LABELS).map(([code, label]) =>
+    jsx('option', { value: code, children: label }, code)
+  )
+  const voiceOptions = (voices || []).map(entry => {
+    const value = entry.voice || entry.key
+    const label = entry.label || entry.name || value
+    const extra = entry.engine === 'phonon' ? '' : entry.quality ? ` · ${entry.quality}` : ''
+    return jsx('option', { value, children: `${label}${extra}` }, value)
+  })
+
+  return jsxs('div', {
+    style: { display: 'flex', flexDirection: 'column', gap: '6px' },
+    children: [
+      jsxs('div', {
+        style: { display: 'flex', gap: '8px' },
+        children: [
+          jsxs('label', {
+            style: { flex: '1 1 45%', display: 'flex', flexDirection: 'column', gap: '3px' },
+            children: [
+              jsx('span', { style: { fontSize: '0.8125rem', color: C.faint }, children: 'Language' }),
+              jsx('select', {
+                'aria-label': 'Language',
+                value: language,
+                disabled: busy,
+                onChange: event => onLanguage(event.target.value),
+                style: selectStyle(),
+                children: languageOptions
+              })
+            ]
+          }),
+          jsxs('label', {
+            style: { flex: '1 1 45%', display: 'flex', flexDirection: 'column', gap: '3px' },
+            children: [
+              jsx('span', { style: { fontSize: '0.8125rem', color: C.faint }, children: 'Voice' }),
+              jsx('select', {
+                'aria-label': 'Voice',
+                value: voice,
+                disabled: busy || !voiceOptions.length,
+                onChange: event => onVoice(event.target.value),
+                style: selectStyle(),
+                children: voiceOptions.length ? voiceOptions : [jsx('option', { value: '', children: 'Default' })]
+              })
+            ]
+          })
+        ]
+      }),
+      jsxs('label', {
+        style: { display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.8125rem', color: C.faint },
+        children: [
+          jsx('span', { children: 'Rewrite' }),
+          jsx('select', {
+            'aria-label': 'Rewrite style',
+            value: rewriteStyle,
+            disabled: busy,
+            onChange: event => onRewrite(event.target.value),
+            style: { ...selectStyle(), width: 'auto', minHeight: '36px', fontSize: '0.875rem' },
+            children: Object.entries(REWRITE_LABELS).map(([code, label]) =>
+              jsx('option', { value: code, children: label }, code)
+            )
+          })
+        ]
+      })
+    ]
+  })
+}
+
+// ---------------------------------------------------------------------------
 // MyPhrases — explicit save only.
 // ---------------------------------------------------------------------------
 
@@ -421,6 +548,10 @@ function ClearVoice({ compact }) {
   const [phrases, setPhrases] = useState([])
   const [saving, setSaving] = useState(false)
   const [clearing, setClearing] = useState(false)
+  const [language, setLanguage] = useState('en')
+  const [voice, setVoice] = useState('')
+  const [voices, setVoices] = useState([])
+  const [rewriteStyle, setRewriteStyle] = useState('courteous')
 
   const recorderRef = useRef(null)
   const streamRef = useRef(null)
@@ -447,6 +578,26 @@ function ClearVoice({ compact }) {
       /* ignore */
     }
   }, [])
+
+  const refreshVoices = useCallback(
+    async code => {
+      if (!REST) return
+      try {
+        const data = await REST(`/voices?language=${encodeURIComponent(code)}`, { method: 'GET' })
+        if (!mounted.current) return
+        const list = (data && data.voices) || []
+        setVoices(list)
+        setVoice(current => {
+          const values = list.map(entry => entry.voice || entry.key)
+          if (current && values.includes(current)) return current
+          return values[0] || ''
+        })
+      } catch (err) {
+        /* the backend half may be off; the picker stays empty */
+      }
+    },
+    []
+  )
 
   const stopTracks = useCallback(() => {
     const stream = streamRef.current
@@ -513,7 +664,10 @@ function ClearVoice({ compact }) {
       setPhase('understanding')
       try {
         const audio_b64 = await blobToBase64(blob)
-        const data = await REST('/transcribe', { method: 'POST', body: { audio_b64, mime: mimeType || 'audio/webm' } })
+        const data = await REST('/transcribe', {
+          method: 'POST',
+          body: { audio_b64, mime: mimeType || 'audio/webm', language, rewrite_style: rewriteStyle }
+        })
         if (!mounted.current) return
         const next = data && data.proposal ? data.proposal : null
         setTranscript((data && data.transcript) || '')
@@ -528,7 +682,7 @@ function ClearVoice({ compact }) {
         setPhase('error')
       }
     },
-    [stopTracks]
+    [stopTracks, language, rewriteStyle]
   )
 
   const startRecording = useCallback(async () => {
@@ -596,7 +750,10 @@ function ClearVoice({ compact }) {
     setPhase('speaking')
     setError('')
     try {
-      const data = await REST('/speak', { method: 'POST', body: { message, approved: true } })
+      const data = await REST('/speak', {
+        method: 'POST',
+        body: { message, approved: true, language, voice }
+      })
       if (!mounted.current) return
       if (data && data.backend && data.backend !== 'phonon') {
         // Cloud use is never silent: say so in the badge line.
@@ -609,7 +766,7 @@ function ClearVoice({ compact }) {
       setError(restErrorText(err))
       setPhase('error')
     }
-  }, [draft, playAudio, refreshStatus])
+  }, [draft, playAudio, refreshStatus, language, voice])
 
   const clearSession = useCallback(async () => {
     setClearing(true)
@@ -650,8 +807,15 @@ function ClearVoice({ compact }) {
   // Load status + phrases on mount, poll for audio the agent asked us to speak.
   useEffect(() => {
     mounted.current = true
+    const savedLanguage = readPref('language', 'en')
+    const savedVoice = readPref('voice', '')
+    const savedStyle = readPref('rewriteStyle', 'courteous')
+    setLanguage(savedLanguage)
+    setVoice(savedVoice)
+    setRewriteStyle(savedStyle)
     void refreshStatus()
     void refreshPhrases()
+    void refreshVoices(savedLanguage)
     const timer = setInterval(async () => {
       if (!REST) return
       try {
@@ -680,7 +844,7 @@ function ClearVoice({ compact }) {
         playerRef.current = null
       }
     }
-  }, [playAudio, refreshPhrases, refreshStatus, stopTracks])
+  }, [playAudio, refreshPhrases, refreshStatus, refreshVoices, stopTracks])
 
   const listening = phase === 'listening'
   const busy = phase === 'understanding' || phase === 'speaking'
@@ -711,6 +875,28 @@ function ClearVoice({ compact }) {
             children: STATES[phase] || STATES.ready
           })
         ]
+      }),
+
+      jsx(LanguageRow, {
+        language,
+        voice,
+        voices,
+        rewriteStyle,
+        busy: listening || busy,
+        onLanguage: code => {
+          setLanguage(code)
+          setVoice('')
+          writePref('language', code)
+          void refreshVoices(code)
+        },
+        onVoice: value => {
+          setVoice(value)
+          writePref('voice', value)
+        },
+        onRewrite: value => {
+          setRewriteStyle(value)
+          writePref('rewriteStyle', value)
+        }
       }),
 
       jsx(PushToTalkButton, {
@@ -909,6 +1095,7 @@ export default {
   defaultEnabled: false, // opt-in: nothing loads until the user enables it
   register(ctx) {
     REST = (path, opts) => ctx.rest(path, opts)
+    STORAGE = ctx.storage || null
 
     // The pane (compact) and the full page (roomy) render the same component.
     ctx.register({

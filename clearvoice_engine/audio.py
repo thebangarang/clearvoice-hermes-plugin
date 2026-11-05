@@ -129,6 +129,11 @@ def float32_to_wav_bytes(samples: np.ndarray, sample_rate: int) -> bytes:
     """Package synthesized speech as WAV bytes held in memory."""
     arr = np.clip(_as_float32(samples), -1.0, 1.0)
     pcm = (arr * 32767.0).astype("<i2").tobytes()
+    return pcm16_to_wav_bytes(pcm, sample_rate)
+
+
+def pcm16_to_wav_bytes(pcm: bytes, sample_rate: int) -> bytes:
+    """Wrap little-endian 16-bit mono PCM in a WAV header, in memory."""
     buffer = io.BytesIO()
     with wave.open(buffer, "wb") as handle:
         handle.setnchannels(1)

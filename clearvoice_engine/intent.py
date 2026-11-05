@@ -94,6 +94,7 @@ class Proposal:
     candidates: list[str] = field(default_factory=list)
     confirmation_question: str = ""
     reason: str = ""
+    style: str = "courteous"
 
     def public(self) -> dict:
         return asdict(self)
@@ -192,33 +193,56 @@ def _with_article(obj: str) -> str:
     return obj if first in _DETERMINERS else f"the {obj}"
 
 
-def _request_message(tokens: list[str]) -> tuple[str, bool, bool]:
-    """Build a courteous request. Returns (message, has_verb_object, has_time)."""
+def _request_parts(tokens: list[str]) -> tuple[str, str, str, str]:
+    """(verb, object phrase, preposition, time phrase) extracted from a request."""
     rest, time_phrase = _time_phrase(tokens)
-
     verb = next((t for t in rest if t in REQUEST_VERBS), "")
     content = [t for t in rest if t not in REQUEST_VERBS]
     content = [t for t in content if t not in {"i", "we", "you", "me", "please", "to", "can", "could", "would", "will", "need", "want", "like"}]
     obj = " ".join(content).strip()
     if obj:
         obj = _with_article(obj)
+    prep = "to" if verb in TO_VERBS else "on"
+    return verb, obj, prep, time_phrase
 
+
+def _request_message(tokens: list[str]) -> tuple[str, bool, bool]:
+    """Build a courteous request. Returns (message, has_verb_object, has_time)."""
+    verb, obj, prep, time_phrase = _request_parts(tokens)
     has_time = bool(time_phrase)
     if verb and obj:
         if has_time:
-            prep = "to" if verb in TO_VERBS else "on"
-            message = f"Could you {verb} {obj} {prep} {time_phrase}, please?"
-        else:
-            message = f"Could you {verb} {obj}, please?"
-        return message, True, has_time
+            return f"Could you {verb} {obj} {prep} {time_phrase}, please?", True, has_time
+        return f"Could you {verb} {obj}, please?", True, has_time
     if verb and has_time:
-        prep = "to" if verb in TO_VERBS else "on"
         return f"Could you {verb} it {prep} {time_phrase}, please?", False, has_time
     if obj:
         return f"I need {obj}, please.", False, has_time
     if verb:
         return f"Could you {verb}, please?", False, has_time
     return "Could you help me, please?", False, has_time
+
+
+def _literal_request(tokens: list[str]) -> str:
+    """The user's own words in a plain order — no courtesy frame, no "could you"."""
+    verb, obj, prep, time_phrase = _request_parts(tokens)
+    if verb and obj:
+        core = f"{verb} {obj} {prep} {time_phrase}" if time_phrase else f"{verb} {obj}"
+        return _capitalise(core) + "."
+    if verb:
+        return _capitalise(verb) + "."
+    if obj:
+        return _capitalise(obj) + "."
+    return _capitalise(" ".join(tokens)) + "."
+
+
+def _verbatim(cleaned: str, intent: str) -> str:
+    """Exactly the recognised words, tidied only at the edges (case preserved)."""
+    text = _capitalise(cleaned).strip()
+    if intent == "question":
+        return text.rstrip("?.") + "?"
+    return text.rstrip(".") + "."
+
 
 
 def _candidates(intent: str, primary: str, tokens: list[str]) -> list[str]:
@@ -240,10 +264,17 @@ def _candidates(intent: str, primary: str, tokens: list[str]) -> list[str]:
 # --------------------------------------------------------------------------
 
 
-def reframe(transcript: str) -> Proposal:
-    """Turn a raw transcript into a proposed clear sentence."""
+def reframe(transcript: str, style: str = "courteous") -> Proposal:
+    """Turn a raw transcript into a proposed clear sentence.
+
+    ``style`` decides how much is rebuilt:
+    ``courteous`` (default) — reorders into a polite request, the brief's flow;
+    ``literal`` — the user's own words in a plain order, no courtesy frame;
+    ``verbatim`` — exactly what was recognised, tidied only at the edges.
+    """
     cleaned = clean_transcript(transcript)
     tokens = _tokens(cleaned)
+    style = style if style in ("courteous", "literal", "verbatim") else "courteous"
 
     if not tokens:
         return Proposal(
@@ -256,13 +287,23 @@ def reframe(transcript: str) -> Proposal:
             candidates=[],
             confirmation_question="I didn't catch that - try again?",
             reason="no_speech",
+            style=style,
         )
 
     intent = classify(tokens)
     has_verb_object = False
     has_time = False
 
-    if intent == "request":
+    if style == "verbatim":
+        message = _verbatim(cleaned, intent)
+        has_verb_object = intent == "request"
+    elif style == "literal":
+        if intent == "request":
+            message = _literal_request(tokens)
+            has_verb_object = True
+        else:
+            message = _verbatim(cleaned, intent)
+    elif intent == "request":
         message, has_verb_object, has_time = _request_message(tokens)
     elif intent == "question":
         message = _capitalise(" ".join(tokens)).rstrip("?") + "?"
@@ -279,6 +320,7 @@ def reframe(transcript: str) -> Proposal:
             message = "Hello."
     else:
         message = _capitalise(" ".join(tokens)).rstrip(".") + "."
+
 
     message = message[:MAX_MESSAGE_CHARS]
 
@@ -324,4 +366,5 @@ def reframe(transcript: str) -> Proposal:
         candidates=_candidates(intent, message, tokens) if (low or consequential) else [message],
         confirmation_question=question,
         reason=reason,
+        style=style,
     )

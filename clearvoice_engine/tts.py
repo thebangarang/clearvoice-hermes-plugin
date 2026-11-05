@@ -1,8 +1,12 @@
-"""Text to speech: on-device Phonon 31m by default, Gradium cloud on request.
+"""Text to speech: Phonon for English, Piper for everything else, cloud on request.
 
-Phonon (Gradium's Apache-2.0 31m English model, run through the ``ptts``
-runtime) synthesizes into a NumPy array that is turned into WAV bytes in
-memory. The CC BY-NC 40m models are never loaded, never referenced.
+* **English** — Phonon 31m (Gradium, Apache-2.0) via ``ptts``, any of the ~37
+  catalog voices, synthesised into a NumPy array and wrapped as WAV in memory.
+* **Every other language** — Piper (MIT runtime) with a per-language voice model.
+  Phonon's multilingual checkpoint is CC BY-NC, so it is never used here.
+* **Cloud** — Gradium, only when the user enabled it *and* selected it.
+
+The CC BY-NC 40m Phonon models are not loaded, not downloaded, not referenced.
 """
 
 from __future__ import annotations
@@ -11,10 +15,13 @@ import threading
 from dataclasses import dataclass
 from typing import Callable
 
-from . import audio, cloud
+from . import audio, cloud, langs, piper
 from .settings import Settings
 
 PHONON_DEFAULT_VOICE = "default"
+
+#: Phonon catalog voices are grouped by these language codes.
+PHONON_LANGUAGES = ("en", "fr", "de", "es", "pt")
 
 
 class SynthesisError(RuntimeError):
@@ -33,6 +40,43 @@ class SynthesisResult:
 
 _phonon_models: dict[str, object] = {}
 _phonon_lock = threading.Lock()
+_catalog: list[dict] = []
+_catalog_at = 0.0
+CATALOG_TTL_SECONDS = 600
+
+
+def phonon_voices() -> list[dict]:
+    """Catalog voices usable on-device, with their language.
+
+    The catalog is fetched once (it is a small JSON) and cached in-process; a
+    failure degrades to the checkpoint's own default voice rather than an error.
+    """
+    global _catalog, _catalog_at
+    import time
+
+    if _catalog and time.time() - _catalog_at < CATALOG_TTL_SECONDS:
+        return list(_catalog)
+    try:
+        import ptts
+
+        catalog = ptts.catalog_voices()
+    except Exception:
+        return [{"voice": PHONON_DEFAULT_VOICE, "name": "Default", "language": "en", "engine": "phonon"}]
+    out = []
+    for entry in catalog:
+        out.append(
+            {
+                "voice": entry.get("name") or entry.get("voice_id"),
+                "voice_id": entry.get("voice_id", ""),
+                "name": entry.get("name", ""),
+                "language": entry.get("language", "en"),
+                "description": entry.get("description", ""),
+                "engine": "phonon",
+            }
+        )
+    _catalog = out
+    _catalog_at = time.time()
+    return list(out)
 
 
 def phonon_available() -> bool:
@@ -43,7 +87,13 @@ def phonon_available() -> bool:
     return True
 
 
-def _load_phonon(language: str = "en"):
+def _load_phonon():
+    """Load the English Phonon checkpoint (the only permissive one).
+
+    ``ptts.TTS(lang=…)`` does **not** select a language model — it loads this
+    same checkpoint and only changes text normalisation — so the language is a
+    normalisation hint here, never a promise that the voice speaks it.
+    """
     try:
         import ptts
     except Exception as exc:  # pragma: no cover - depends on install state
@@ -52,18 +102,17 @@ def _load_phonon(language: str = "en"):
             "`hermes plugins validate <plugin> --install-deps`, then reload ClearVoice."
         ) from exc
 
-    lang = language if language in ("en", "fr", "de", "es", "pt") else "en"
     with _phonon_lock:
-        model = _phonon_models.get(lang)
+        model = _phonon_models.get("en")
         if model is None:
             try:
-                model = ptts.TTS(lang=lang)
+                model = ptts.TTS(lang="en")
             except Exception as exc:
                 raise SynthesisError(
                     "The on-device Phonon model could not be loaded. It is downloaded once "
                     "on first use - check the connection, then try again."
                 ) from exc
-            _phonon_models[lang] = model
+            _phonon_models["en"] = model
     return model
 
 
@@ -72,19 +121,19 @@ def reset_phonon_models() -> None:
         _phonon_models.clear()
 
 
-def phonon_voices(language: str = "en") -> list[str]:
-    model = _load_phonon(language)
-    try:
-        return [str(v) for v in model.voices]
-    except Exception:  # pragma: no cover - defensive
-        return [PHONON_DEFAULT_VOICE]
+def voices_for(language_code: str) -> list[dict]:
+    """Every voice available for a language, on-device first."""
+    language = langs.get(language_code)
+    if language.code == "en" and phonon_available():
+        return phonon_voices()
+    return piper.voices(language.code)
 
 
 def synthesize_phonon(text: str, settings: Settings, voice: str | None = None) -> SynthesisResult:
-    model = _load_phonon(settings.language)
-    voices = phonon_voices(settings.language)
-    wanted = (voice or settings.phonon_voice or PHONON_DEFAULT_VOICE).strip()
-    chosen = wanted if wanted in voices else (PHONON_DEFAULT_VOICE if PHONON_DEFAULT_VOICE in voices else voices[0])
+    model = _load_phonon()
+    available = {v["voice"] for v in phonon_voices()}
+    wanted = (voice or settings.voice or PHONON_DEFAULT_VOICE).strip()
+    chosen = wanted if wanted in available else PHONON_DEFAULT_VOICE
     try:
         samples = model.synth(text, voice=chosen)
         sample_rate = int(model.sample_rate)
@@ -94,6 +143,22 @@ def synthesize_phonon(text: str, settings: Settings, voice: str | None = None) -
     return SynthesisResult(
         wav=wav,
         backend="phonon",
+        voice=chosen,
+        sample_rate=sample_rate,
+        duration_s=audio.wav_duration_seconds(wav),
+        text=text,
+    )
+
+
+def synthesize_piper(text: str, settings: Settings, voice: str | None = None) -> SynthesisResult:
+    key = (voice or settings.voice or settings.language_info.default_voice).strip()
+    try:
+        wav, sample_rate, chosen = piper.synthesize(text, key, settings.language)
+    except piper.PiperError as exc:
+        raise SynthesisError(str(exc)) from exc
+    return SynthesisResult(
+        wav=wav,
+        backend="piper",
         voice=chosen,
         sample_rate=sample_rate,
         duration_s=audio.wav_duration_seconds(wav),
@@ -138,9 +203,16 @@ def synthesize(
     if len(spoken) > 600:
         raise SynthesisError("That message is too long to speak in one go. Shorten it a little.")
 
-    chosen = (backend or settings.tts_backend or "phonon").strip().lower()
-    if chosen not in ("phonon", "gradium"):
-        chosen = "phonon"
+    chosen = (backend or settings.resolved_tts_engine or "auto").strip().lower()
+    if chosen not in ("phonon", "piper", "gradium"):
+        chosen = settings.resolved_tts_engine
+
+    if chosen == "phonon" and settings.language != "en":
+        # An English checkpoint reading French is worse than saying so.
+        raise SynthesisError(
+            f"Phonon only speaks English. Choose 'auto' or the Piper voice for "
+            f"{settings.language_info.label}, or switch the voice backend to Gradium cloud."
+        )
 
     if chosen == "gradium":
         if not settings.allow_cloud:
@@ -149,5 +221,8 @@ def synthesize(
                 "or switch the voice backend to on-device."
             )
         return synthesize_cloud(spoken, settings, get_key or (lambda: None), voice)
+
+    if chosen == "piper":
+        return synthesize_piper(spoken, settings, voice)
 
     return synthesize_phonon(spoken, settings, voice)

@@ -1,24 +1,43 @@
 name: clearvoice
 display_name: ClearVoice
-version: 0.1.0
+version: 0.2.0
 manifest_version: 2
 description: >
-  Privacy-first push-to-talk speech clarity bridge. You speak naturally into a
-  push-to-talk button; ClearVoice transcribes the clip locally, proposes a clear
-  sentence you can edit or reject, and speaks it aloud with on-device Phonon TTS.
-  Audio is captured only while the button is held, is never written to disk, and
-  is discarded when the utterance is finished. No telemetry, no account, no
-  profile, no background listening. Cloud speech (Gradium) is opt-in, off by
-  default, and needs the user's own API key.
+  Privacy-first push-to-talk speech-clarity bridge, in 17 languages. You speak
+  naturally into a push-to-talk button; ClearVoice transcribes the clip locally,
+  shows a clear sentence you can edit or reject, and speaks it aloud with an
+  on-device voice (Phonon 31m for English, Piper for the other 16 languages,
+  including French, Spanish, German, Arabic, Hindi, Japanese, Chinese, Korean,
+  Thai and Vietnamese). Audio is captured only while the button is held, is never
+  written to disk, and is discarded when the utterance is finished. No telemetry,
+  no account, no profile, no background listening. Cloud speech (Gradium) is
+  opt-in, off by default, and needs the user's own API key.
 license: MIT
 author: Kevin L. (AITurn)
 homepage: https://github.com/thebangarang/clearvoice-hermes-plugin
-tags: [accessibility, speech, tts, stt, privacy, local-first]
+tags: [accessibility, speech, tts, stt, privacy, local-first, multilingual]
 requires_hermes: ">=0.22.0"
 provides_tools:
   - clearvoice_speak
 provides_hooks: []
 config_schema:
+  language:
+    type: str
+    choices: [en, fr, de, es, pt, it, nl, pl, ru, tr, ar, hi, ja, zh, ko, th, vi]
+    default: en
+    label: Language
+    description: "What you speak and what ClearVoice speaks back. English uses Phonon; the other languages use a Piper voice."
+  voice:
+    type: str
+    default: ""
+    label: Voice
+    description: "Voice name: a Phonon catalog name for English (e.g. Zoey, Juniper), or a Piper voice key for other languages (e.g. fr_FR-siwis-medium). Empty = that language's default. The pane lists what is available."
+  rewrite_style:
+    type: str
+    choices: [courteous, literal, verbatim]
+    default: courteous
+    label: Rewrite style
+    description: "courteous = 'Could you move the appointment to Tuesday, please?'; literal = your words in a plain order; verbatim = exactly what was recognised."
   stt_backend:
     type: str
     choices: [local, gradium]
@@ -27,25 +46,15 @@ config_schema:
     description: "local = faster-whisper on this machine (offline). gradium = Gradium cloud, needs allow_cloud and an API key."
   tts_backend:
     type: str
-    choices: [phonon, gradium]
-    default: phonon
+    choices: [auto, phonon, piper, gradium]
+    default: auto
     label: Text-to-speech backend
-    description: "phonon = Phonon 31m on this machine (offline, Apache-2.0). gradium = Gradium cloud, needs allow_cloud and an API key."
-  language:
-    type: str
-    default: en
-    label: Speech language
-    description: "Language tag used by the speech backends (en, fr, de, es, pt)."
+    description: "auto = Phonon for English, Piper for every other language (both offline). gradium = cloud, needs allow_cloud and an API key."
   whisper_model:
     type: str
-    default: tiny.en
+    default: ""
     label: Local STT model
-    description: "faster-whisper model size (tiny.en, base.en, small.en). Larger is more accurate and slower."
-  phonon_voice:
-    type: str
-    default: default
-    label: Phonon voice
-    description: "Voice name from the installed Phonon checkpoint. 'default' always exists."
+    description: "Optional override: tiny, base, small, medium (a .en variant only hears English, so it is swapped for you when the language is not English). Empty = chosen from the language."
   gradium_voice_id:
     type: str
     default: ""

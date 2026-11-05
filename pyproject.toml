@@ -1,12 +1,14 @@
 [project]
 name = "clearvoice-hermes-plugin"
-version = "0.1.0"
+version = "0.2.0"
 description = "ClearVoice — privacy-first push-to-talk speech clarity bridge for Hermes Agent."
 requires-python = ">=3.10"
 dependencies = [
-    # Local, on-device speech synthesis (Phonon 31m, Apache-2.0 weights).
+    # Local, on-device speech synthesis for English (Phonon 31m, Apache-2.0 weights).
     "ptts>=0.6.0,<0.7",
-    # Local speech recognition. Both are optional at runtime: the plugin
+    # Local synthesis for every other language (MIT runtime, per-voice models).
+    "piper-tts>=1.8,<2",
+    # Local speech recognition. All three are optional at runtime: the plugin
     # degrades to a plain-language "local model missing" state instead of
     # failing to load.
     "faster-whisper>=1.2.1,<1.3",
