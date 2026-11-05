@@ -28,3 +28,7 @@ phrases.json
 
 # Build brief (local working document, not part of the shipped plugin)
 clearvoice_hermes_hackathon_build_brief.md
+
+# Demo build artifacts (regenerate with scripts/build_demo.sh)
+demo/*.wav
+demo/*.mp4

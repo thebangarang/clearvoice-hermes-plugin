@@ -192,6 +192,37 @@ def synthesize_cloud(
     )
 
 
+MAX_SPEECH_CHARS = 4000
+CHUNK_CHARS = 280
+
+
+def _chunk_text(text: str, limit: int = CHUNK_CHARS) -> list[str]:
+    """Split at sentence boundaries so a paragraph can be read aloud."""
+    import re
+
+    sentences = re.split(r"(?<=[.!?;:])\s+", text)
+    chunks: list[str] = []
+    current = ""
+    for sentence in sentences:
+        while len(sentence) > limit:
+            cut = sentence.rfind(" ", 0, limit) or limit
+            if current:
+                chunks.append(current)
+                current = ""
+            chunks.append(sentence[:cut].strip())
+            sentence = sentence[cut:].strip()
+        if not sentence:
+            continue
+        if current and len(current) + 1 + len(sentence) > limit:
+            chunks.append(current)
+            current = sentence
+        else:
+            current = f"{current} {sentence}".strip()
+    if current:
+        chunks.append(current)
+    return [c for c in chunks if c]
+
+
 def synthesize(
     text: str,
     settings: Settings,
@@ -205,8 +236,25 @@ def synthesize(
     spoken = " ".join(str(text or "").split())
     if not spoken:
         raise SynthesisError("There is nothing to speak yet.")
-    if len(spoken) > 600:
-        raise SynthesisError("That message is too long to speak in one go. Shorten it a little.")
+    if len(spoken) > MAX_SPEECH_CHARS:
+        raise SynthesisError("That is too long to speak in one go. Shorten it to a few paragraphs.")
+
+    if len(spoken) > CHUNK_CHARS:
+        parts = [
+            synthesize(chunk, settings, backend=backend, voice=voice, get_key=get_key, seed=seed)
+            for chunk in _chunk_text(spoken)
+        ]
+        if not parts:
+            raise SynthesisError("There is nothing to speak yet.")
+        wav = audio.concat_wavs([part.wav for part in parts])
+        return SynthesisResult(
+            wav=wav,
+            backend=parts[0].backend,
+            voice=parts[0].voice,
+            sample_rate=parts[0].sample_rate,
+            duration_s=audio.wav_duration_seconds(wav),
+            text=spoken,
+        )
 
     chosen = (backend or settings.resolved_tts_engine or "auto").strip().lower()
     if chosen not in ("phonon", "piper", "gradium"):

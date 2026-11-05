@@ -136,3 +136,54 @@ def test_fallback_settings_are_local(plugin):
     assert settings.tts_backend == "auto"
     assert settings.resolved_tts_engine == "phonon"
     assert settings.allow_cloud is False
+
+
+# --- CLI surface -----------------------------------------------------------
+
+
+class _Args:
+    def __init__(self, **kwargs):
+        for key, value in kwargs.items():
+            setattr(self, key, value)
+
+
+def test_cli_without_an_action_prints_usage(plugin, capsys):
+    code = plugin._cli_handler(_Args(action=None))
+    assert code == 2
+    assert "hermes clearvoice" in capsys.readouterr().out
+
+
+def test_cli_say_writes_a_wav_and_reports_it(plugin, tmp_path, monkeypatch, capsys):
+    from clearvoice_engine import tts
+
+    class _Result:
+        wav = b"RIFFfake"
+        backend = "phonon"
+        voice = "default"
+        duration_s = 1.0
+        text = "Hello."
+
+    monkeypatch.setattr(tts, "synthesize", lambda *a, **k: _Result())
+    out = tmp_path / "speech.wav"
+    code = plugin._cli_handler(
+        _Args(action="say", text="Hello.", voice="", backend="", language="", out=str(out), json=True)
+    )
+    assert code == 0
+    assert out.read_bytes() == b"RIFFfake"
+    assert '"file"' in capsys.readouterr().out
+
+
+def test_cli_hear_reports_a_missing_file_in_plain_language(plugin, capsys):
+    code = plugin._cli_handler(
+        _Args(action="hear", path="/no/such/file.webm", language="", reframe=False, json=False)
+    )
+    assert code == 1
+    assert "No file at" in capsys.readouterr().out
+
+
+def test_cli_refuses_a_relative_out_path(plugin, capsys):
+    code = plugin._cli_handler(
+        _Args(action="say", text="Hello.", voice="", backend="", language="", out="relative.wav", json=False)
+    )
+    assert code == 1
+    assert "absolute" in capsys.readouterr().out

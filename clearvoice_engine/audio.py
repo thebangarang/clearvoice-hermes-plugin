@@ -158,3 +158,28 @@ def wav_sample_rate(wav_bytes: bytes) -> int:
             return int(handle.getframerate() or 0)
     except (wave.Error, EOFError):
         return 0
+
+
+def concat_wavs(parts: list[bytes], gap_ms: int = 120) -> bytes:
+    """Join WAV byte strings that share a format, with a short pause between."""
+    if not parts:
+        return b""
+    if len(parts) == 1:
+        return parts[0]
+    frames: list[bytes] = []
+    rate = width = channels = None
+    for index, part in enumerate(parts):
+        with wave.open(io.BytesIO(part), "rb") as handle:
+            if rate is None:
+                rate, width, channels = handle.getframerate(), handle.getsampwidth(), handle.getnchannels()
+            frames.append(handle.readframes(handle.getnframes()))
+            if index != len(parts) - 1 and gap_ms > 0 and rate:
+                silence = int(rate * (gap_ms / 1000.0)) * (width or 2) * (channels or 1)
+                frames.append(b"\x00" * silence)
+    buffer = io.BytesIO()
+    with wave.open(buffer, "wb") as out:
+        out.setnchannels(channels or 1)
+        out.setsampwidth(width or 2)
+        out.setframerate(rate or 22050)
+        out.writeframes(b"".join(frames))
+    return buffer.getvalue()

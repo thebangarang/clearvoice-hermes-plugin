@@ -352,6 +352,19 @@ pipeline uses.
 A bundled skill (`clearvoice`) teaches the agent when to reach for each tool and
 that the approval gate is not optional.
 
+### Using it from outside Hermes
+
+Four surfaces, in increasing order of coupling — a shell command with `--json`,
+the plugin's local HTTP routes, a plain Python import of `clearvoice_engine`, or
+the three agent tools. Recipes and the full route table are in
+[docs/INTEGRATION.md](docs/INTEGRATION.md).
+
+```bash
+hermes clearvoice say "The pharmacy closes at six." --json
+hermes clearvoice hear ~/notes/voice-note.webm --json --reframe
+hermes clearvoice say-back ~/notes/mum.webm --out ~/notes/clear.wav
+```
+
 ---
 
 ## Accessibility notes

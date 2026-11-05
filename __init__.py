@@ -461,6 +461,169 @@ def _fallback_settings():
 
 
 # ---------------------------------------------------------------------------
+# CLI: `hermes clearvoice ...` — the third-party surface for scripts and cron
+# ---------------------------------------------------------------------------
+
+
+def _cli_setup(parser) -> None:
+    parser.description = "ClearVoice: speak text, transcribe audio, or re-voice a clip — locally."
+    sub = parser.add_subparsers(dest="action")
+
+    say = sub.add_parser("say", help="Speak text with the on-device voice and write a WAV")
+    say.add_argument("text", help="The sentence to speak")
+    say.add_argument("--voice", default="", help="Voice name (Phonon catalog name or Piper voice key)")
+    say.add_argument("--backend", choices=["phonon", "piper", "gradium"], default="")
+    say.add_argument("--language", default="", help="Language code for this call (en, fr, ja, …)")
+    say.add_argument("--out", default="", help="Write the WAV here instead of the plugin speech folder")
+    say.add_argument("--json", action="store_true", help="Machine-readable output")
+
+    hear = sub.add_parser("hear", help="Transcribe an audio file locally")
+    hear.add_argument("path", help="Audio file (WAV, WebM/Opus, OGG, MP3)")
+    hear.add_argument("--language", default="", help="Language code for this call")
+    hear.add_argument("--reframe", action="store_true", help="Also return the cleaned-up sentence")
+    hear.add_argument("--json", action="store_true", help="Machine-readable output")
+
+    back = sub.add_parser("say-back", help="Listen to a clip and speak it clearly")
+    back.add_argument("path", help="Audio file to listen to")
+    back.add_argument("--language", default="", help="Language code for this call")
+    back.add_argument("--voice", default="", help="Voice name to speak with")
+    back.add_argument("--out", default="", help="Write the spoken WAV here")
+    back.add_argument("--json", action="store_true", help="Machine-readable output")
+
+
+def _cli_settings(ctx, language: str = ""):
+    settings = _read_settings(ctx) if ctx is not None else _fallback_settings()
+    if not language:
+        return settings
+    from clearvoice_engine.settings import Settings
+
+    return Settings.from_mapping(
+        {
+            "language": language,
+            "tts_backend": settings.tts_backend,
+            "stt_backend": settings.stt_backend,
+            "whisper_model": settings.whisper_model,
+            "voice": settings.voice,
+            "rewrite_style": settings.rewrite_style,
+            "allow_cloud": settings.allow_cloud,
+        },
+        has_key=settings.has_gradium_key,
+    )
+
+
+def _cli_write_speech(wav: bytes, out: str) -> "Path":
+    from clearvoice_engine import runtime
+
+    if out:
+        target = Path(out).expanduser()
+        if not target.is_absolute():
+            raise ValueError("--out must be an absolute path.")
+        target.parent.mkdir(parents=True, exist_ok=True)
+    else:
+        folder = runtime.data_dir() / "speech"
+        folder.mkdir(parents=True, exist_ok=True)
+        target = folder / f"clearvoice-{int(time.time())}.wav"
+    target.write_bytes(wav)
+    return target
+
+
+def _cli_handler(args, **kwargs) -> int:
+    """Handler for `hermes clearvoice …`. Prints, returns an exit code, never raises."""
+    import json as _json
+
+    ctx = kwargs.get("_ctx")
+    action = getattr(args, "action", None)
+    if action is None:
+        print("Usage: hermes clearvoice {say|hear|say-back} …  (try --help)")
+        return 2
+
+    try:
+        settings = _cli_settings(ctx, getattr(args, "language", "") or "")
+
+        if action == "say":
+            from clearvoice_engine import tts
+
+            result = tts.synthesize(
+                args.text,
+                settings,
+                backend=(getattr(args, "backend", "") or None),
+                voice=(getattr(args, "voice", "") or None),
+                get_key=lambda: _get_secret(GRADIUM_KEY_ENV),
+            )
+            path = _cli_write_speech(result.wav, getattr(args, "out", ""))
+            payload = {
+                "spoken": False,
+                "text": result.text,
+                "backend": result.backend,
+                "voice": result.voice,
+                "duration_s": round(result.duration_s, 2),
+                "file": str(path),
+            }
+            print(_json.dumps(payload, ensure_ascii=False) if args.json else str(path))
+            return 0
+
+        if action == "hear":
+            from clearvoice_engine import intent, runtime, stt
+
+            clip = _read_audio_file(args.path)
+            result = stt.transcribe(
+                clip, settings, get_key=lambda: _get_secret(GRADIUM_KEY_ENV), lexicon=runtime.lexicon()
+            )
+            payload = {
+                "transcript": result.text,
+                "language": result.language,
+                "model": result.model,
+                "duration_s": round(result.duration_s, 2),
+                "corrections_applied": result.corrections_applied,
+            }
+            if getattr(args, "reframe", False):
+                payload["proposal"] = intent.reframe(result.text, settings.rewrite_style).public()
+            if args.json:
+                print(_json.dumps(payload, ensure_ascii=False))
+            else:
+                print(payload["transcript"])
+                if "proposal" in payload:
+                    print(f"ClearVoice: {payload['proposal']['message']}")
+            return 0
+
+        if action == "say-back":
+            from clearvoice_engine import intent, runtime, stt, tts
+
+            clip = _read_audio_file(args.path)
+            result = stt.transcribe(
+                clip, settings, get_key=lambda: _get_secret(GRADIUM_KEY_ENV), lexicon=runtime.lexicon()
+            )
+            proposal = intent.reframe(result.text, settings.rewrite_style)
+            spoken = tts.synthesize(
+                proposal.message,
+                settings,
+                voice=(getattr(args, "voice", "") or None),
+                get_key=lambda: _get_secret(GRADIUM_KEY_ENV),
+            )
+            path = _cli_write_speech(spoken.wav, getattr(args, "out", ""))
+            payload = {
+                "transcript": result.text,
+                "text": proposal.message,
+                "backend": spoken.backend,
+                "duration_s": round(spoken.duration_s, 2),
+                "file": str(path),
+            }
+            if args.json:
+                print(_json.dumps(payload, ensure_ascii=False))
+            else:
+                print(f"heard:  {payload['transcript']}")
+                print(f"spoken: {payload['text']}")
+                print(path)
+            return 0
+
+        print(f"Unknown action: {action}")
+        return 2
+    except Exception as exc:
+        print(f"ClearVoice: {exc}" if str(exc) else "ClearVoice: that did not work.")
+        return 1
+
+
+# ---------------------------------------------------------------------------
 # Slash command
 # ---------------------------------------------------------------------------
 
@@ -539,6 +702,18 @@ def register(ctx) -> None:
         lambda raw: _handle_command(raw, ctx=ctx),
         description="Open the ClearVoice push-to-talk pane",
     )
+
+    # CLI surface for scripts, cron and other tooling: `hermes clearvoice …`
+    try:
+        ctx.register_cli_command(
+            "clearvoice",
+            "Local speech: say, hear, say-back",
+            _cli_setup,
+            _cli_handler,
+            description="Speak text, transcribe audio, or re-voice a clip on-device.",
+        )
+    except Exception as exc:  # older ctx without CLI commands
+        logger.debug("clearvoice: CLI command not registered: %s", exc)
 
     skill_dir = Path(_ROOT) / "skills" / "clearvoice"
     skill_md = skill_dir / "SKILL.md"
