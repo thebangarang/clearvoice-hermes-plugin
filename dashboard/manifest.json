@@ -1,0 +1,5 @@
+{
+  "name": "clearvoice",
+  "api": "plugin_api.py",
+  "description": "ClearVoice speech pipeline: transcribe, propose, speak. In-memory only."
+}

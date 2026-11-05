@@ -1,0 +1,30 @@
+# Local environment
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+
+# Secrets — never commit these
+.env
+.env.*
+!.env.example
+
+# Plugin runtime data (session state, saved phrases)
+data/
+plugin-data/
+phrases.json
+*.wav
+*.webm
+*.ogg
+*.opus
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Build brief (local working document, not part of the shipped plugin)
+clearvoice_hermes_hackathon_build_brief.md

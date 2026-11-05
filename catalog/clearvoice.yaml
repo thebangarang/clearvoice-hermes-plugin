@@ -1,0 +1,38 @@
+name: clearvoice
+repo: https://github.com/thebangarang/clearvoice-hermes-plugin
+# Must be the full 40-character commit SHA of the reviewed tree.
+# Replace with the commit this submission pins (see "Before you open the PR").
+sha: 0000000000000000000000000000000000000000
+description: >-
+  Privacy-first push-to-talk speech-clarity bridge for people whose speech is hard to understand.
+  Hold a button, speak naturally, and ClearVoice shows one clear sentence in large text before
+  anything is spoken; press "Speak it" and an on-device Phonon 31m voice (Apache-2.0, via the
+  official ptts runtime) says it aloud. Speech recognition runs locally on faster-whisper with a
+  small English model. The microphone is opened only while the button is held and every track is
+  stopped on release. Audio, transcripts and generated speech stay in memory for the session and
+  are never written to disk; the only file the plugin writes is its own phrases.json, and only
+  when the user presses "Save phrase". No telemetry, no account, no profile, no behavioural memory.
+  Disclosure — network: none by default; a one-time model download from huggingface.co on first use
+  (no audio, no text), and the Gradium REST API only when the user turns on "Allow cloud speech",
+  selects the Gradium backend, and supplies their own key (triple-gated, no automatic fallback).
+  Shell: one ffmpeg call with a constant argv, audio over stdin/stdout, no shell and no user text in
+  the command. Background processes: none. Credentials: never written by the plugin; the optional
+  Gradium key is read through agent.secret_scope. Filesystem: reads and writes only its own data
+  directory. Capabilities: none requested — one tool (clearvoice_speak) and one slash command
+  (/clearvoice); the agent cannot make it speak text the user has not seen (two independent
+  approval gates). Desktop half uses only @hermes/plugin-sdk: a pane, a route, a sidebar row, a
+  palette entry and a status-bar chip.
+maintainer: thebangarang
+tier: community
+category: voice
+version: "0.1.0"
+docs_url: https://github.com/thebangarang/clearvoice-hermes-plugin/blob/main/README.md
+platforms: [linux, macos, windows]
+title: ClearVoice
+capabilities:
+  provides_tools:
+    - clearvoice_speak
+  provides_hooks: []
+  provides_middleware: []
+  requires_env: []
+requires_hermes: ">=0.22.0"

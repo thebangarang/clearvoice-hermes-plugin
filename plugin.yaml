@@ -1,0 +1,63 @@
+name: clearvoice
+display_name: ClearVoice
+version: 0.1.0
+manifest_version: 2
+description: >
+  Privacy-first push-to-talk speech clarity bridge. You speak naturally into a
+  push-to-talk button; ClearVoice transcribes the clip locally, proposes a clear
+  sentence you can edit or reject, and speaks it aloud with on-device Phonon TTS.
+  Audio is captured only while the button is held, is never written to disk, and
+  is discarded when the utterance is finished. No telemetry, no account, no
+  profile, no background listening. Cloud speech (Gradium) is opt-in, off by
+  default, and needs the user's own API key.
+license: MIT
+author: Kevin L. (AITurn)
+homepage: https://github.com/thebangarang/clearvoice-hermes-plugin
+tags: [accessibility, speech, tts, stt, privacy, local-first]
+requires_hermes: ">=0.22.0"
+provides_tools:
+  - clearvoice_speak
+provides_hooks: []
+config_schema:
+  stt_backend:
+    type: str
+    choices: [local, gradium]
+    default: local
+    label: Speech-to-text backend
+    description: "local = faster-whisper on this machine (offline). gradium = Gradium cloud, needs allow_cloud and an API key."
+  tts_backend:
+    type: str
+    choices: [phonon, gradium]
+    default: phonon
+    label: Text-to-speech backend
+    description: "phonon = Phonon 31m on this machine (offline, Apache-2.0). gradium = Gradium cloud, needs allow_cloud and an API key."
+  language:
+    type: str
+    default: en
+    label: Speech language
+    description: "Language tag used by the speech backends (en, fr, de, es, pt)."
+  whisper_model:
+    type: str
+    default: tiny.en
+    label: Local STT model
+    description: "faster-whisper model size (tiny.en, base.en, small.en). Larger is more accurate and slower."
+  phonon_voice:
+    type: str
+    default: default
+    label: Phonon voice
+    description: "Voice name from the installed Phonon checkpoint. 'default' always exists."
+  gradium_voice_id:
+    type: str
+    default: ""
+    label: Gradium voice id
+    description: "Voice id for Gradium TTS, from the Gradium voice library. Only used when the Gradium TTS backend is selected."
+  gradium_api_key:
+    type: secret
+    env: CLEARVOICE_GRADIUM_API_KEY
+    label: Gradium API key
+    description: "Your own Gradium key. Stored in .env, never in config.yaml, never logged or displayed."
+  allow_cloud:
+    type: bool
+    default: false
+    label: Allow cloud speech (Gradium)
+    description: "Off by default. When on, a session may send the chosen audio or text to Gradium's API - only if the Gradium backend is selected for that step."
