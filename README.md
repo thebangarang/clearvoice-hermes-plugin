@@ -66,6 +66,9 @@ to speak · Speaking · Error**. A failure never dead-ends — every error messa
 one plain sentence plus the action that fixes it ("The microphone is blocked.
 Allow microphone access for Hermes in your system settings, then try again.").
 
+A static rendering of the three main states, drawn from the same tokens as
+`desktop/plugin.js`, is in [`docs/pane-mockup.html`](docs/pane-mockup.html).
+
 ---
 
 ## How it works

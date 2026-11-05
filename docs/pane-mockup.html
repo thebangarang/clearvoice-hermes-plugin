@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>ClearVoice pane — three states</title>
+<style>
+  :root {
+    --bg: #0d1014;
+    --card: #14181e;
+    --line: rgba(140, 160, 185, 0.22);
+    --fg: #eef2f7;
+    --dim: #a7b2c0;
+    --faint: #7c8794;
+    --accent: #4c8dff;
+    --ok: #35d07f;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 20px;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: var(--app-font, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif);
+  }
+  .row { display: flex; flex-wrap: wrap; gap: 18px; align-items: flex-start; }
+  .col { width: 372px; }
+  .cap {
+    font-size: 11px; letter-spacing: .09em; text-transform: uppercase;
+    color: var(--faint); margin: 0 0 8px 2px;
+  }
+  .pane {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 16px;
+    display: flex; flex-direction: column; gap: 14px;
+    min-height: 512px;
+  }
+  .head { display: flex; align-items: baseline; justify-content: space-between; }
+  .head h2 { margin: 0; font-size: 19px; font-weight: 700; letter-spacing: -.01em; }
+  .head .state { font-size: 12.5px; color: var(--faint); }
+  .ptt {
+    width: 100%; min-height: 132px; border-radius: 16px;
+    border: 3px solid var(--line); background: rgba(140,160,185,.07);
+    color: var(--fg); font: inherit; font-size: 22px; font-weight: 700;
+    display: grid; place-items: center; cursor: pointer;
+  }
+  .ptt.listening { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .hint { text-align: center; font-size: 13.5px; color: var(--faint); margin: -6px 0 0; }
+  .sentence {
+    border: 2px solid var(--line); border-radius: 13px; padding: 14px;
+    font-size: 22px; line-height: 1.35; font-weight: 600;
+  }
+  .sentence.pending { border-color: var(--accent); }
+  .said { font-size: 14px; color: var(--faint); margin: 0; }
+  .placeholder {
+    border: 1px dashed var(--line); border-radius: 13px; padding: 22px 14px;
+    color: var(--faint); font-size: 15px; text-align: center; line-height: 1.45;
+  }
+  .btns { display: flex; flex-wrap: wrap; gap: 8px; }
+  .btn {
+    flex: 1 1 120px; min-height: 48px; border-radius: 12px; border: 1px solid var(--line);
+    background: transparent; color: var(--fg); font: inherit; font-size: 15px; cursor: pointer;
+  }
+  .btn.primary { background: var(--accent); border: none; color: #fff; font-weight: 700; font-size: 17px; }
+  .badge {
+    border: 1px solid var(--line); background: rgba(140,160,185,.06); border-radius: 12px;
+    padding: 10px 11px; display: flex; flex-direction: column; gap: 5px;
+  }
+  .badge .top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .badge .line1 { display: flex; align-items: center; gap: 7px; font-size: 12.5px; font-weight: 600; color: var(--ok); }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); }
+  .badge .clear {
+    border: 1px solid var(--line); background: transparent; color: var(--fg);
+    border-radius: 7px; padding: 3px 9px; font: inherit; font-size: 11.5px; cursor: pointer;
+  }
+  .badge .meta { display: flex; flex-wrap: wrap; gap: 3px 12px; font-size: 12px; color: var(--dim); }
+  .foot { font-size: 11.5px; color: var(--faint); line-height: 1.45; }
+  .mocknote {
+    margin: 0 0 16px; font-size: 12px; color: var(--faint);
+  }
+  .mocknote b { color: var(--dim); }
+</style>
+</head>
+<body>
+  <p class="mocknote"><b>Static mockup</b> — the pane's three states, drawn from the same tokens as <code>desktop/plugin.js</code>. Not a screenshot: the real pane needs the Desktop app with the plugin enabled.</p>
+
+  <div class="row">
+    <div class="col">
+      <p class="cap">1 · Ready</p>
+      <div class="pane">
+        <div class="head"><h2>ClearVoice</h2><span class="state">Ready</span></div>
+        <button class="ptt">Push to talk</button>
+        <p class="hint">Hold, or hold Space while focused.</p>
+        <div class="placeholder">Your words will appear here, big and clear, before anything is spoken.</div>
+        <div class="badge">
+          <div class="top">
+            <div class="line1"><span class="dot"></span><span>Audio processed this session only. Nothing saved.</span></div>
+            <button class="clear">Clear session</button>
+          </div>
+          <div class="meta"><span>Hearing: On-device (faster-whisper)</span><span>Voice: On-device (Phonon 31m)</span><span>Network: Offline</span></div>
+        </div>
+        <div class="foot">ClearVoice never listens in the background, never sends messages, and never keeps your recordings.</div>
+      </div>
+    </div>
+
+    <div class="col">
+      <p class="cap">2 · Listening</p>
+      <div class="pane">
+        <div class="head"><h2>ClearVoice</h2><span class="state">Listening</span></div>
+        <button class="ptt listening">Listening … release</button>
+        <p class="hint">Speak naturally. Take your time.</p>
+        <div class="placeholder">Your words will appear here, big and clear, before anything is spoken.</div>
+        <div class="badge">
+          <div class="top">
+            <div class="line1"><span class="dot"></span><span>Audio processed this session only. Nothing saved.</span></div>
+            <button class="clear">Clear session</button>
+          </div>
+          <div class="meta"><span>Hearing: On-device (faster-whisper)</span><span>Voice: On-device (Phonon 31m)</span><span>Network: Offline</span></div>
+        </div>
+        <div class="foot">Microphone open only while the button is held. Release and every track is stopped.</div>
+      </div>
+    </div>
+
+    <div class="col">
+      <p class="cap">3 · Ready to speak</p>
+      <div class="pane">
+        <div class="head"><h2>ClearVoice</h2><span class="state">Ready to speak</span></div>
+        <button class="ptt" disabled>Push to talk</button>
+        <p class="hint">Hold, or hold Space while focused.</p>
+        <div class="sentence pending">Could you move the appointment to Tuesday, please?</div>
+        <p class="said">You said: “I need appointment Tuesday move.”</p>
+        <div class="btns">
+          <button class="btn primary">Speak it</button>
+          <button class="btn">Edit it</button>
+          <button class="btn">Try again</button>
+          <button class="btn">Cancel</button>
+        </div>
+        <div class="badge">
+          <div class="top">
+            <div class="line1"><span class="dot"></span><span>Audio processed this session only. Nothing saved.</span></div>
+            <button class="clear">Clear session</button>
+          </div>
+          <div class="meta"><span>Hearing: On-device (faster-whisper)</span><span>Voice: On-device (Phonon 31m)</span><span>Network: Offline</span></div>
+        </div>
+        <div class="foot">Nothing is spoken until you press Speak it — and the sentence is yours to edit first.</div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
