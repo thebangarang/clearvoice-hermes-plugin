@@ -205,33 +205,21 @@ determiners and the courtesy template, and the pipeline — strip the frame, lif
 time, keep the object with its article — is shared. ~80 lines per language, and a
 native speaker can review a table without reading the engine.
 
-### What the model may and may not do
+### Nothing leaves the machine. There is no model in the path.
 
-ClearVoice can send the transcript **text** to the model Hermes already has
-configured — no new key, no second vendor. *It may only tidy it.*
+An earlier version could hand the transcript to a cloud model to "make it clearer".
+It paraphrased, dropped details and invented content — so the path is **deleted**,
+not disabled. Today a transcript becomes one sentence through rule packs only, on
+this machine:
 
-| | local (default) | gateway |
-|---|---|---|
-| Leaves the machine | nothing | the transcript text, language, style |
-| Audio | never stored, never sent | never stored, never sent |
-| May remove hesitations ("euh", "um"), fix capitals and full stop | yes | yes |
-| May add, replace or reorder a word | **never** | **never** — the reply must be a subsequence of what you said, or it is discarded and your own words are used |
-| Cost | none | a fraction of a cent, shown in the pane |
+- `verbatim` (default) — your words, tidied at the edges;
+- `courteous` — your words re-ordered into a polite frame, in the seven languages
+  whose grammar is checked (en, fr, de, es, it, pt, nl);
+- `polish` — for the other ten: punctuation, capital, the language's own politeness
+  word, word order untouched.
 
-That rule is mechanical, not hopeful: every word of the reply must appear, in
-order, in the transcript. A model that writes "Could you move the appointment to
-Tuesday, please?" when you said "appointment… Tuesday… move" fails the check, and
-the pane keeps your words.
-
-So where does the sentence structure come from? Two honest places, and nothing
-else:
-
-- **rule packs** (`rewrite_style: courteous`) rebuild verb, object and time
-  expression in 7 languages — English, French, German, Spanish, Italian,
-  Portuguese, Dutch — because that is checked grammar, not a guess;
-- **polish** covers the other 10: punctuation, capital, the language's own
-  politeness word, and a confirmation question in that language, with the word
-  order untouched.
+No account, no key, no telemetry, no model download beyond speech and voice.
+Unplug the network and every part of this still works.
 
 Why two engines: Gradium's only permissively-licensed Phonon checkpoint is
 English — the multilingual 40m model is **CC BY-NC**, which a commercial plugin

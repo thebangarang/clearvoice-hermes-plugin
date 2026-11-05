@@ -1,5 +1,31 @@
 # Worklog
 
+## 2026-11-05 (v0.7.0) — all local, no exceptions
+
+**Decided with the user:** remove the model-assisted path entirely and ship a local
+plugin. Two rounds of making the model behave (v0.6.0 strict prompt, v0.6.1
+subsequence check) had reduced it to "remove hesitations", which is not worth a
+network dependency, a provider's retention policy, or the risk of paraphrase coming
+back through a future edit.
+
+**Removed:** `rewrite_llm.py`, its tests, `reframe_backend` (setting, manifest key,
+pane checkbox, per-request override), the `completer_from_*` helpers, and every
+mention in README/PRIVACY/SECURITY. `propose()` is now four lines and calls the rule
+packs.
+
+**Kept, because it is the product:** local Whisper `small` (3.1% WER measured),
+personal dictionary, saved phrases, local voice, 7 grammar packs + 10 polish
+languages, three tools and a skill, and the approval gate.
+
+Also written down: the user's read is right — for severe dysarthria, Voiceitt
+(trained on 50-200 personal phrases) and Project Relate (500 phrases, closed beta)
+recognise atypical speech better than a general Whisper. ClearVoice's honest place
+is local, private, multilingual, inside the user's own agent — and the demo should
+show "your words, spoken back clearly", not an AI improving anyone.
+
+Version 0.7.0. Tests green, validate green.
+
+
 ## 2026-11-05 (v0.6.1) — the model is no longer allowed to improve the sentence
 
 **Reported, after trying gateway mode:** "it hallucinate a lot, it's going far from

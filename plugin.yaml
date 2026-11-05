@@ -1,5 +1,5 @@
 name: clearvoice
-version: 0.6.2
+version: 0.7.0
 manifest_version: 2
 description: >
   Privacy-first push-to-talk speech-clarity bridge, in 17 languages. You speak
@@ -44,12 +44,6 @@ config_schema:
     default: verbatim
     label: Rewrite style
     description: "verbatim (default) = exactly what was recognised, tidied at the edges. literal = your words in a plain order. courteous = ClearVoice REBUILDS the sentence ('Could you move the appointment to Tuesday, please?') — only where a grammar pack exists (en, fr, de, es, it, pt, nl), and it is a rewrite, so it is opt-in."
-  reframe_backend:
-    type: str
-    choices: [local, gateway]
-    default: local
-    label: Who rebuilds the sentence
-    description: "local = on-device only. gateway = your own model through Hermes (the one you already use) may TIDY the transcript: remove hesitations, fix capitals and the final full stop. It may never add, replace or reorder a word — a reply that does is discarded and your own words are used. In gateway mode the transcript TEXT leaves this machine; audio never does, and the dictionary is never sent."
   stt_backend:
     type: str
     choices: [local, gradium]

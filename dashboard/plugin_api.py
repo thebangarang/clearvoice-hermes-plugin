@@ -78,7 +78,7 @@ def _settings(overrides: dict[str, Any] | None = None) -> Settings:
     # the saved settings for that one request. The pane persists its own choice in
     # ctx.storage, so the plugin never writes config.yaml.
     if overrides:
-        for key in ("language", "voice", "rewrite_style", "reframe_backend",
+        for key in ("language", "voice", "rewrite_style",
                     "stt_backend", "tts_backend", "whisper_model", "phrases_dir"):
             value = overrides.get(key)
             if isinstance(value, str) and value.strip():
@@ -173,7 +173,6 @@ async def transcribe(payload: dict[str, Any]) -> dict[str, Any]:
         result.text,
         settings,
         language=result.language or settings.language,
-        complete=propose_mod.completer_from_host(PLUGIN_ID),
     )
     runtime.session.add(result.text, proposal.message, result.backend)
     return {
@@ -194,11 +193,7 @@ async def clarify(payload: dict[str, Any]) -> dict[str, Any]:
         raise HTTPException(status_code=400, detail="Nothing to clarify.")
     resolved = _settings(payload)
     proposal = await asyncio.to_thread(
-        propose_mod.propose,
-        text,
-        resolved,
-        language=resolved.language,
-        complete=propose_mod.completer_from_host(PLUGIN_ID),
+        propose_mod.propose, text, resolved, language=resolved.language
     )
     return {"proposal": proposal.public()}
 

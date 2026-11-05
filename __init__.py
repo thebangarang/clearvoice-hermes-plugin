@@ -165,12 +165,7 @@ def _propose(ctx, transcript, settings, language=None):
     """Local rule pack first; the user's own model when they turned it on."""
     from clearvoice_engine import propose as _propose_mod
 
-    return _propose_mod.propose(
-        transcript,
-        settings,
-        language=language,
-        complete=_propose_mod.completer_from_ctx(ctx),
-    )
+    return _propose_mod.propose(transcript, settings, language=language)
 
 
 def _read_settings(ctx):

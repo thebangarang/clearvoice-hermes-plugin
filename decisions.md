@@ -5,6 +5,25 @@ rejected. Newest first.
 
 ---
 
+## D-021 — The language model path is deleted, not disabled (2026-11-05)
+
+**Decision.** `clearvoice_engine/rewrite_llm.py`, the `reframe_backend` setting, the
+pane toggle and their tests are removed. A transcript becomes a sentence through
+rule packs only; there is no code path that can send it to a model.
+
+**Why.** Two rounds of tightening were not enough: a chat model asked to help will
+help, and the first prompt produced paraphrase, invented content and wrong detail.
+A switch that can be turned back on is a promise waiting to be broken, and the
+privacy claim is only worth something if it is absolute. "Nothing leaves the
+machine" is now literal — the only outbound traffic left is model and voice
+downloads, plus the Gradium backend if the user opts into cloud speech.
+
+**Cost.** No model-assisted phrasing in any language. Ten languages get polish, not
+re-ordering. Accepted: the plugin's value is being local and honest, and the sales
+pitch is "your own words, clearly spoken back", not "an AI that says it better".
+
+---
+
 ## D-020 — `small` everywhere, because the model was the accuracy problem (2026-11-05)
 
 **Decision.** Every language now defaults to Whisper `small`: English was on
@@ -52,6 +71,8 @@ in the seven languages whose grammar is checked.
 ---
 
 ## D-018 — The sentence can be rebuilt by the user's own model; the audio never leaves (2026-11-05)
+
+*Reversed by D-021: the model path is deleted.*
 
 **Decision.** `reframe_backend: gateway` (default `local`) sends the transcript
 text, language and style hint to the model Hermes already configured — through
