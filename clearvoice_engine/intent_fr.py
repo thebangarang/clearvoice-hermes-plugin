@@ -246,8 +246,17 @@ def _time_span(tokens: list[str]) -> tuple[int, int] | None:
     while start > 0 and _norm(tokens[start - 1]) in {_norm(w) for w in FR_TIME_LINKS}:
         start -= 1
     end = anchor
-    while end + 1 < len(tokens) and _norm(tokens[end + 1]) in {_norm(w) for w in FR_TIME_LINKS | FR_TIME_WORDS}:
-        end += 1
+    time_words = {_norm(w) for w in FR_TIME_WORDS}
+    links = {_norm(w) for w in FR_TIME_LINKS}
+    while end + 1 < len(tokens):
+        following = _norm(tokens[end + 1])
+        after = _norm(tokens[end + 2]) if end + 2 < len(tokens) else ""
+        if following in time_words:
+            end += 1
+        elif following in links and after in time_words:
+            end += 2
+        else:
+            break
     return start, end
 
 

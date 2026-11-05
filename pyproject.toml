@@ -1,6 +1,6 @@
 [project]
 name = "clearvoice-hermes-plugin"
-version = "0.4.0"
+version = "0.5.0"
 description = "ClearVoice — privacy-first push-to-talk speech clarity bridge for Hermes Agent."
 requires-python = ">=3.10"
 dependencies = [

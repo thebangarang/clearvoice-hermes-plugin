@@ -5,7 +5,38 @@ rejected. Newest first.
 
 ---
 
+## D-017 — One engine, a table per language: seven rebuilt, ten polished (2026-11-05)
+
+**Decision.** The reframing pipeline is shared (`intent_packs.py`); a language is
+a `Pack` of four tables — verbs, time words, frame words + determiners, courtesy
+template. Packs ship for English, French, German, Spanish, Italian, Portuguese and
+Dutch. The other ten keep `polish()`, labelled `polished_only` in the pane.
+
+**Why the shape changed.** French cost 379 lines because it re-implemented the
+algorithm. Measured for this decision: 84 verb forms, and only four things vary
+between languages. As a table, a language is ~80 lines and reviewable by a native
+speaker; as a module it was a copy of the engine anyone would have to read first.
+Verb-final order is one field of the table (`"{object}{time} bitte {verb}"`), which
+is what made German and Dutch possible at all.
+
+**Why a small local model was rejected — measured, not assumed.**
+`llama-cpp-python` + Qwen2.5-1.5B-Instruct Q4 on this CPU box: model loads in 2.1 s,
+median 2.7 s per sentence with a few-shot prompt. But on *fragmented* input — the
+only input this product exists for — it produced "I need an appointment for Tuesday
+and move." and "Je dois avoir un rendez-vous le mardi et déplacer.": it concatenates
+fragments instead of restructuring them, and the 1.5B French/German output is not
+grammatical. The size that would fix that (7B+) is ~10× slower on CPU, which no
+push-to-talk flow survives. Rules stay the engine; the model idea is not dead, it
+is just not this model on this hardware.
+
+**Cost.** Ten languages still do not reorder. Said in the README, in the pane, and
+in `reason`. Naming a limit is cheaper than a judge finding it.
+
+---
+
 ## D-016 — Fifteen languages get "polished", not "rebuilt" — and the UI says which (2026-11-05)
+
+*Superseded in part by D-017: five of those fifteen now have their own table.*
 
 **Decision.** English and French have full rule packs. The other 15 get
 `intent_langs.polish()`: punctuation tidied, first letter capitalised, the

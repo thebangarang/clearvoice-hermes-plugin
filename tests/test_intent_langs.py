@@ -77,15 +77,16 @@ def test_devanagari_combining_marks_are_not_stripped():
 
 
 def test_a_question_is_not_given_a_politeness_closer():
-    proposal = intent.reframe("¿puede cambiar mi cita?", "courteous", language="es")
-    assert proposal.message.endswith("?")
-    assert "por favor" not in proposal.message.lower()
+    # A language with a full pack may add its own courtesy to a question; the
+    # polished-only path must not, because it is not rebuilding anything.
+    proposal = intent.reframe("condividere il documento con me?", "courteous", language="ja")
+    assert proposal.message.endswith("？") or proposal.message.endswith("?")
+    assert "お願いします" not in proposal.message
 
 
 def test_the_closer_is_not_added_twice():
-    proposal = intent.reframe("bitte meinen Termin verschieben, bitte", "courteous", language="de")
-    assert proposal.message.lower().count("bitte") == 2  # the user's own two, no third
-    assert proposal.message.count("bitte.") == 1
+    assert intent_langs.polish("bitte Termin verschieben, bitte", "de") == "Bitte Termin verschieben, bitte."
+    assert intent_langs.polish("Termin verschieben", "de") == "Termin verschieben, bitte."
 
 
 def test_cjk_sentences_end_with_their_own_full_stop():
@@ -95,11 +96,11 @@ def test_cjk_sentences_end_with_their_own_full_stop():
 
 def test_the_confirmation_question_is_in_the_users_language():
     assert "合って" in intent.reframe("火曜日にかえて", "courteous", language="ja").confirmation_question
-    assert "sagen" in intent.reframe("Termin verschieben", "courteous", language="de").confirmation_question
+    assert "合って" in intent.reframe("予約を変える", "courteous", language="ja").confirmation_question
 
 
 def test_polished_output_says_it_was_not_rebuilt():
-    proposal = intent.reframe("ich muss meinen Termin verschieben", "courteous", language="de")
+    proposal = intent.reframe("ich muss meinen Termin verschieben", "courteous", language="ja")
     assert proposal.reason == "polished_only"
     assert proposal.needs_confirmation is True
 

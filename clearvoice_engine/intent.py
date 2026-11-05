@@ -20,6 +20,7 @@ from typing import Iterable
 
 from . import intent_fr as _fr
 from . import intent_langs as _langs
+from . import intent_packs as _packs
 from .intent_fr import guess_language
 
 # --------------------------------------------------------------------------
@@ -311,6 +312,25 @@ def reframe(transcript: str, style: str = "courteous", language: str | None = No
         return _reframe_fr(cleaned, tokens, style)
 
     if resolved != "en":
+        pack = _packs.PACKS.get(resolved)
+        if pack is not None:
+            words = _packs.tokens_of(transcript, lower_first=not pack.capitalises_nouns)
+            message, confidence, has_vo = _packs.reframe_with_pack(
+                str(transcript or ""), cleaned, words, pack, style
+            )
+            low = confidence < 0.6 or not has_vo
+            return Proposal(
+                transcript=cleaned,
+                message=message[:MAX_MESSAGE_CHARS],
+                intent="request" if has_vo else "statement",
+                confidence=confidence,
+                needs_confirmation=low,
+                consequential=False,
+                candidates=[message[:MAX_MESSAGE_CHARS]],
+                confirmation_question=_langs.confirm_question(resolved) if low else "",
+                reason="low_confidence" if low else "",
+                style=style,
+            )
         return _reframe_polished(cleaned, tokens, style, resolved, asked)
 
     if not tokens:

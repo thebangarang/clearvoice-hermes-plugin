@@ -1,5 +1,51 @@
 # Worklog
 
+## 2026-11-05 (v0.5.0) — a table per language, and the local model measured and rejected
+
+**Trigger:** "I really think we should try to deliver the most universal and multi
+language support plugin… Is it really that long and complex to get a good batch of
+rule packs for all these languages?"
+
+**Measured first, twice.**
+
+1. *What a rule pack cost as it was.* French was 379 lines + 140 test lines and 84
+   verb forms — because it re-implemented the whole algorithm. That is not a table,
+   it is a second engine.
+2. *What the alternative costs.* `llama-cpp-python` + Qwen2.5-1.5B-Instruct Q4 on
+   this CPU: loads in 2.1 s, median 2.7 s per sentence few-shot, 19.7 s worst case.
+   On fragmented input it concatenates instead of restructuring ("I need an
+   appointment for Tuesday and move."), French came back ungrammatical, and
+   Vietnamese mixed Chinese characters. A 7B would fix the quality and be ~10×
+   slower here. Rejected on evidence.
+
+**Built instead:** `intent_packs.py` — one shared pipeline (strip the frame, find the
+verb, lift the time span, keep the object with its article) plus one `Pack` per
+language: verbs, time words, frame words, determiners, courtesy template. Verb-final
+languages are just a different template. Packs for de/es/it/pt/nl join en and fr:
+**7 rebuilt, 10 polished and labelled.** A new language is ~80 lines, reviewable by
+a native speaker without reading the engine.
+
+```
+de  Könnten Sie meinen Termin von Dienstag auf Donnerstag bitte verschieben?
+es  ¿Podría cambiar mi cita del martes al jueves, por favor?
+it  Potrebbe spostare il mio appuntamento da martedì a giovedì, per favore?
+pt  Poderia mudar a minha consulta de terça para quinta, por favor?
+nl  Kunt u mijn afspraak van dinsdag naar donderdag verplaatsen, alstublieft?
+```
+
+Bugs the tests caught while building it:
+- umlauts: "können" never matched "konnen", so the German frame leaked ("Könnten
+  Sie können das Rezept…"). Frame and filler sets are normalised now.
+- articles vs frame words: `mi`, `il`, `a`, `mijn` were in both lists, so objects
+  lost their article ("Podría cambiar cita"). A test now forbids the overlap.
+- time spans swallowed the following preposition, so "morgen an die Apotheke"
+  became the time phrase and the pharmacy vanished from the request.
+- "danke" became "danke, bitte": gratitude and greetings are exempt now.
+
+**Verified:** 160 tests, `validate` green, `doctor` 3 tools / 0 hooks, v0.5.0.
+
+---
+
 ## 2026-11-05 (v0.3.2) — the reframer learns French, and the demo speaks one language
 
 **Trigger:** "in english, it will guess the sentence and put words in order and

@@ -58,6 +58,19 @@ POLITE: dict[str, Politeness] = {
 
 _TRAILING = " .,!?;:…。、،؟।"
 
+# "please" belongs on a request, never on "thank you".
+GRATITUDE = frozenset({
+    "thanks", "thank", "merci", "danke", "gracias", "obrigado", "obrigada",
+    "grazie", "bedankt", "dziękuję", "dzienkuje", "спасибо", "teşekkürler",
+    "tesekkurler", "شكرا", "धन्यवाद", "ありがとう", "谢谢", "감사합니다",
+    "ขอบคุณ", "cảm ơn", "cam on",
+})
+GREETING = frozenset({
+    "hello", "hi", "hey", "bonjour", "salut", "hallo", "hola", "olá", "ciao",
+    "hallo", "goedendag", "cześć", "czesc", "привет", "merhaba", "مرحبا",
+    "नमस्ते", "こんにちは", "你好", "안녕하세요", "สวัสดี", "xin chào", "chao",
+})
+
 
 def politeness_for(language: str) -> Politeness:
     """The table entry for a language, English when we have nothing better."""
@@ -89,6 +102,11 @@ def polish(text: str, language: str, *, question: bool = False) -> str:
 
     if question:
         return f"{body}{entry.question}"
+
+    words = body.split(" ")
+    head = {word.lower().strip(".,!?") for word in words[:2]}
+    if (head & (GRATITUDE | GREETING)) and len(words) <= 3:
+        return f"{body}{entry.stop}"
 
     if _already_polite(body, entry):
         return f"{body}{entry.stop}"
