@@ -34,6 +34,31 @@ END_SECONDS = 5.0
 GUARD_START = 0.15   # start this much before the first sound
 GUARD_END = 0.45     # keep this much after the last sound
 
+INTRO_SLIDES = [
+    ("Hold one button. Speak however you can.",
+     "Your words appear, big and editable.",
+     "Nothing is spoken until you approve it.", 5.0),
+    ("On this machine, not in a cloud.",
+     "Whisper small - about 3 percent word error, 2.8 seconds.",
+     "No account, no upload, no saved audio.", 5.0),
+]
+
+DIVIDER = ("Three styles, one recording.",
+           "Same request, said three ways.",
+           "verbatim - literal - courteous", 3.0)
+
+OUTRO_SLIDES = [
+    ("Every mode is a tool, not just a button.",
+     "clearvoice_transcribe - audio file to text",
+     "clearvoice_speak - text to speech, in the pane or a WAV", 5.5),
+    ("Drops into a workflow, a script, an app.",
+     "clearvoice_say_back - listen, propose, speak",
+     "Local HTTP routes, a Python import, and a bundled skill", 5.5),
+    ("All of it runs here.",
+     "Your voice never leaves the machine.",
+     "The agent can use the same three tools you just saw.", 5.0),
+]
+
 STYLES = {
     "verbatim": {
         "file": "Verbatim.mkv",
@@ -109,18 +134,58 @@ def sound_span(path: Path, noise_db: int = -32, min_silence: float = 0.35) -> tu
     return begin, finish
 
 
+def _dt(text: str) -> str:
+    """Escape a string for drawtext.
+
+    drawtext treats "%" as the start of an expansion: a stray one makes it drop the
+    whole line with only a warning ("Stray % near ..."), which is how a subtitle
+    silently disappeared from the overview slide.
+    """
+    return (str(text)
+            .replace("\\", "")
+            .replace("%", "%%")
+            .replace(":", r"\:")
+            .replace("'", r"\'"))
+
+
+def _fit(text: str, base: int, max_width: int = 1720, weight: float = 0.6) -> int:
+    """Shrink a line until it fits the frame.
+
+    A centred drawtext with a text wider than the frame gets clipped at both ends
+    (x becomes negative) and silently loses the first and last words - which is how
+    "So it drops into a workflow, a script, an app" became "it drops into ... api".
+    """
+    size = base
+    while size > 24 and len(text) * weight * size > max_width:
+        size -= 2
+    return size
+
+
 def card(out: Path, title: str, subtitle: str, footnote: str) -> None:
+    title_size = _fit(title, 88)
+    subtitle_size = _fit(subtitle, 42)
+    footnote_size = _fit(footnote, 26)
     draw = (
-        f"drawtext=fontfile={FONT}:text='{title}':fontcolor=0xf2f5f8:fontsize=88:"
+        f"drawtext=fontfile={FONT}:text='{_dt(title)}':fontcolor=0xf2f5f8:fontsize={title_size}:"
         f"x=(w-text_w)/2:y=(h-text_h)/2-90,"
-        f"drawtext=fontfile={FONT_REGULAR}:text='{subtitle}':fontcolor=0x5b9dff:fontsize=42:"
+        f"drawtext=fontfile={FONT_REGULAR}:text='{_dt(subtitle)}':fontcolor=0x5b9dff:fontsize={subtitle_size}:"
         f"x=(w-text_w)/2:y=(h-text_h)/2+20,"
-        f"drawtext=fontfile={FONT_REGULAR}:text='{footnote}':fontcolor=0x8b96a3:fontsize=26:"
+        f"drawtext=fontfile={FONT_REGULAR}:text='{_dt(footnote)}':fontcolor=0x8b96a3:fontsize={footnote_size}:"
         f"x=(w-text_w)/2:y=(h-text_h)/2+110"
     )
     run(["ffmpeg", "-y", "-loglevel", "error", "-f", "lavfi",
          "-i", "color=c=0x0d1014:s=1920x1080:r=30", "-frames:v", "1",
          "-vf", draw, str(out)])
+
+
+def slide(text: tuple[str, str, str, float], work: Path, name: str) -> Path:
+    """A text card: title, line, footnote, duration."""
+    title, line, footnote, seconds = text
+    image = work / f"{name}.png"
+    card(image, title, line, footnote)
+    clip = work / f"{name}.mp4"
+    still(image, seconds, clip)
+    return clip
 
 
 def still(path: Path, seconds: float, out: Path) -> None:
@@ -136,15 +201,15 @@ def still(path: Path, seconds: float, out: Path) -> None:
 def segment(source: Path, begin: float, end: float, style: dict, out: Path) -> None:
     """One trimmed clip, labelled with its style and a one-line explanation."""
     badge = (
-        f"drawtext=fontfile={FONT}:text='{style['badge']}':fontcolor=0x5b9dff:fontsize=34:"
+        f"drawtext=fontfile={FONT}:text='{_dt(style['badge'])}':fontcolor=0x5b9dff:fontsize=34:"
         f"x=48:y=44:box=1:boxcolor=0x0d1014@0.72:boxborderw=14"
     )
     line = (
-        f"drawtext=fontfile={FONT_REGULAR}:text='{style['line']}':fontcolor=0xf2f5f8:fontsize=40:"
+        f"drawtext=fontfile={FONT_REGULAR}:text='{_dt(style['line'])}':fontcolor=0xf2f5f8:fontsize=40:"
         f"x=(w-text_w)/2:y=h-150:box=1:boxcolor=0x0d1014@0.78:boxborderw=18:enable='between(t,0.25,7.5)'"
     )
     note = (
-        f"drawtext=fontfile={FONT_REGULAR}:text='{style['note']}':fontcolor=0x8b96a3:fontsize=28:"
+        f"drawtext=fontfile={FONT_REGULAR}:text='{_dt(style['note'])}':fontcolor=0x8b96a3:fontsize=28:"
         f"x=(w-text_w)/2:y=h-92:box=1:boxcolor=0x0d1014@0.78:boxborderw=16:enable='between(t,0.25,7.5)'"
     )
     chain = ",".join([
@@ -190,6 +255,11 @@ def main() -> int:
         still(DEMO / "title.png", TITLE_SECONDS, title_clip)
         parts.append(title_clip)
 
+        for index, intro in enumerate(INTRO_SLIDES, start=1):
+            parts.append(slide(intro, work, f"01-intro-{index}"))
+
+        parts.append(slide(DIVIDER, work, "02-divider"))
+
         for index, name in enumerate(order, start=1):
             spec = STYLES[name]
             source = source_dir / spec["file"]
@@ -206,6 +276,9 @@ def main() -> int:
                 "kept_s": round(end - begin, 2),
             })
             print(f"{name:10s} trimmed to {end - begin:5.1f}s  ({begin:5.2f} -> {end:5.2f})")
+
+        for index, outro in enumerate(OUTRO_SLIDES, start=1):
+            parts.append(slide(outro, work, f"50-outro-{index}"))
 
         card(DEMO / "endcard.png", "Nothing leaves the machine.",
              "No background listening. No saved audio. No account.",
