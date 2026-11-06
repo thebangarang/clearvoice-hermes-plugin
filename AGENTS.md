@@ -29,7 +29,7 @@ data is used or stored here.
 ## Gates before claiming anything works
 
 ```bash
-.venv/bin/python -m pytest
+.venv/bin/python -m pytest          # 160 tests
 hermes plugins validate . --install-deps
 hermes plugins doctor .
 python scripts/smoke_test.py        # real models
@@ -47,3 +47,8 @@ python scripts/api_selftest.py      # every REST route, real audio
    `confirm_required` on the tool, `approved` on the route.
 5. Roadmap items that add continuous listening, conversation history or a user
    profile are out of scope permanently — that is the product, not a phase.
+6. **Never reintroduce a language model into the reframing path.** A chat model
+   asked to "make it clearer" paraphrases and invents; that path was deleted in
+   0.7.0, not disabled. A transcript becomes a sentence through rule tables only.
+7. **Never ship an unreviewed grammar pack.** A pack is a table a native speaker
+   has checked; the other languages get the polish tier and the pane says so.

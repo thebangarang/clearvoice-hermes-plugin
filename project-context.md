@@ -3,7 +3,7 @@
 ## Identity
 
 - **Plugin id:** `clearvoice`
-- **Version:** 0.1.0
+- **Version:** 0.7.0
 - **Type:** Hermes Agent plugin (agent half + Desktop half + REST backend)
 - **Purpose:** privacy-first push-to-talk speech-clarity bridge
 - **Audience:** people whose speech is hard for others to understand, and the
@@ -19,8 +19,8 @@
 | Desktop half | ESM `desktop/plugin.js` against `@hermes/plugin-sdk` (no build step) |
 | Backend | FastAPI router in `dashboard/plugin_api.py`, mounted at `/api/plugins/clearvoice` |
 | Engine | `clearvoice_engine/` — Hermes-free Python, unit-testable |
-| STT | faster-whisper (local, MIT) · Gradium ASR (cloud, opt-in) |
-| TTS | Phonon 31m via ptts (local, Apache-2.0) · Gradium TTS (cloud, opt-in) |
+| STT | faster-whisper `small` (local, MIT) · Gradium ASR (cloud, opt-in) |
+| TTS | Phonon 31m via ptts for English (Apache-2.0) · Piper for 16 languages (MIT) · Gradium (cloud, opt-in) |
 | Audio | ffmpeg over pipes for decode; NumPy + `wave` for encode; nothing on disk |
 
 ## Commands
@@ -41,10 +41,13 @@ hermes plugins doctor .
 3. **Local by default.** Cloud is a triple-gated opt-in.
 4. **Accessibility first.** Large targets, high contrast, full keyboard path, no
    timeouts, no dark patterns.
-5. **Narrow manifest.** One tool, no hooks, no capabilities, no background work.
+5. **Narrow manifest.** Three tools, no hooks, no capabilities, no background work.
+6. **No language model in the pipeline.** A transcript becomes a sentence through
+   rule tables only. An earlier model-assisted path paraphrased and was deleted.
 
-## State of play (2026-11-05)
+## State of play (2026-11-06)
 
-Working end to end and validated. Remaining before submission: publish the
-repository, pin the catalog entry to a real SHA, open the catalog PR, record the
-90-second demo.
+Working end to end and validated: 160 tests, `validate` and `doctor` green, public
+repository published, 80-second demo recorded (`demo/clearvoice-demo.mp4`).
+Remaining before submission: pin the catalog entry to a real SHA and open the
+catalog PR.

@@ -1,340 +1,297 @@
 # ClearVoice
 
-**Speak naturally. Be understood clearly. Stay in control.**
+**A local, private push-to-talk speech bridge for people whose words are hard to
+understand — and for anyone who wants their own agent to hear them.**
 
-ClearVoice is a Hermes Agent plugin: a push-to-talk speech-clarity bridge for
-people whose speech may be hard for others to understand — aphasia, Parkinson's,
-cerebral palsy, ALS, stuttering, a stroke recovery, or a temporary voice
-impairment such as after surgery or with a bad cold. It works in **17 languages**,
-and both the recognition and the voice run on your own machine.
+![version](https://img.shields.io/badge/version-0.7.1-blue)
+![tests](https://img.shields.io/badge/tests-160%20passing-brightgreen)
+![licence](https://img.shields.io/badge/licence-MIT-green)
+![offline](https://img.shields.io/badge/runs-offline-black)
+![audio saved](https://img.shields.io/badge/audio%20saved-none-critical)
 
-You hold a big button, speak however you can, and let go. ClearVoice writes down
-what it heard, proposes one clear sentence, **shows it to you in large text
-before anything is spoken**, and — when you press *Speak it* — says it aloud in a
-clear on-device voice.
+Hold one button. Speak however you can. Your words appear, large and editable.
+Nothing is spoken until you press **Speak it** — then a clear voice on your own
+machine says your sentence, in one of seventeen languages.
 
-- **Not** an always-on assistant. The microphone is open only while the button is held.
-- **Not** a cloud product. Speech recognition and the voice both run on your machine.
-- **Not** a memory. Nothing about you is stored: no profile, no history, no telemetry.
+No account. No upload. No audio written to disk. No language model deciding what
+you meant.
 
-> ClearVoice may help people communicate more clearly. It is not a medical
+[![Watch the 80-second demo](demo/poster.png)](demo/clearvoice-demo.mp4)
+
+*`demo/clearvoice-demo.mp4` — three takes, one per rewrite style, cut from a single
+recording session. Rebuild it with `python3 scripts/montage_demo.py`.*
+
+> ClearVoice may help people be understood more clearly. It is not a medical
 > device, it does not diagnose or treat anything, and it is not a substitute for
 > speech therapy.
 
 ---
 
-## The 30-second path
+## Contents
 
-```bash
-# 1. install the plugin (from this repo)
-hermes plugins install thebangarang/clearvoice-hermes-plugin --enable
-
-# 2. open it
-#    Desktop: Sidebar → ClearVoice (or /clearvoice in a chat)
-#    First run downloads the on-device voice (~64 MB) and a small STT model (~75 MB).
-
-# 3. hold "Push to talk", speak, release, check the sentence, press "Speak it".
-```
-
-Two gates, both opt-in: the Python half loads only when the plugin is enabled
-(`hermes plugins enable clearvoice`), and the Desktop half stays **off** in
-Capabilities → Plugins until you switch it on. Nothing runs before you say so.
+[Why this exists](#why-this-exists) ·
+[What it does](#what-it-does) ·
+[What you see](#what-you-see) ·
+[Languages](#languages-what-is-good-what-is-fair) ·
+[Accuracy](#accuracy-measured) ·
+[Privacy](#privacy-by-construction) ·
+[Engines](#engines) ·
+[Install](#install) ·
+[Use it](#use-it) ·
+[Accessibility](#accessibility) ·
+[Limitations](#limitations) ·
+[Development](#development) ·
+[Roadmap](#roadmap)
 
 ---
 
-## What the user actually sees
+## Why this exists
+
+Roughly one in seven adults lives with a speech difference — aphasia after a
+stroke, Parkinson's, cerebral palsy, ALS, stuttering, a tracheostomy, or the voice
+that arrives after surgery or with a bad cold. Everyday speech recognition is
+trained on typical voices and quietly fails them.
+
+The commercial answer (Voiceitt, Google's Project Relate) is a **per-user trained
+model**, which usually means an account, a cloud round trip, a few hundred recorded
+phrases, or a closed beta. All three of those solve recognition better than we do.
+
+ClearVoice takes the opposite constraint and lives with its cost:
+
+> **Your voice never leaves this machine, nothing is stored, and the tool never
+> pretends to know what you meant.**
+
+That is the product: *hear me exactly, and say it clearly*. Not *improve my
+sentence*. Most of the engineering follows from that one line — including the
+absence of any language model in the pipeline.
+
+## What it does
+
+```
+  microphone ──► RMS gate ──► Whisper small ──► your dictionary ──► rule pack ──► approval ──► voice
+   (held)        (silence      (on-device)       (your names,      (verbatim /    (you)      (on-device)
+                  costs no                        your places)      literal /
+                  model call)                                       courteous)
+```
+
+1. **Hold to talk.** The microphone is open only while the button is down; every
+   track is stopped the instant you release.
+2. **It writes down what it heard**, on your CPU, in memory.
+3. **It offers a sentence, large, in the pane.** With `verbatim` — the default —
+   those are *your words*, tidied at the edges. You can edit them first.
+4. **You press Speak it.** A local neural voice says it. The agent cannot speak for
+   you: two independent approval gates sit between a model and your mouth.
+
+The only files the plugin ever writes are your saved phrases and your dictionary,
+and only when you press the button that saves them.
+
+## What you see
 
 ```
 ┌──────────────────────────── ClearVoice ────────────────────────────┐
-│  ● Audio processed this session only. Nothing saved.   [Clear session] │
-│  Hearing: On-device (faster-whisper)   Voice: On-device (Phonon 31m)   │
-│  Network: Offline                                                       │
+│  ● Audio processed this session only. Nothing saved.  [Clear session] │
+│  Hearing: On-device          Voice: On-device          Network: Offline │
 ├────────────────────────────────────────────────────────────────────┤
-│                                                                        │
-│                    ┌──────────────────────────┐                        │
-│                    │      Push to talk        │   ← 148 px tall, huge   │
-│                    └──────────────────────────┘                        │
-│                                                                        │
-│    Could you move the appointment to Tuesday, please?                  │
-│                                 ↑ 24 px semibold, never spoken unseen   │
-│                                                                        │
-│    [ Speak it ]  [ Edit it ]  [ Try again ]  [ Cancel ]                │
-└────────────────────────────────────────────────────────────────────────┘
+│                    ┌──────────────────────────┐                     │
+│                    │      Push to talk        │   148 px, huge      │
+│                    └──────────────────────────┘                     │
+│                                                                     │
+│    I need appointment Tuesday move.                                │
+│                                 ↑ 24 px semibold, never spoken unseen │
+│                                                                     │
+│    [ Speak it ]  [ Edit it ]  [ Try again ]  [ Cancel ]             │
+└────────────────────────────────────────────────────────────────────┘
 ```
 
-Six states, always named on screen: **Ready · Listening · Understanding · Ready
-to speak · Speaking · Error**. A failure never dead-ends — every error message is
-one plain sentence plus the action that fixes it ("The microphone is blocked.
-Allow microphone access for Hermes in your system settings, then try again.").
+Six named states — **Ready · Listening · Understanding · Ready to speak ·
+Speaking · Error** — and every error is one plain sentence plus the action that
+fixes it ("The microphone is blocked. Allow microphone access for Hermes in your
+system settings, then try again.").
 
-A static rendering of the three main states, drawn from the same tokens as
+A static rendering of the main states, drawn from the same tokens as
 `desktop/plugin.js`, is in [`docs/pane-mockup.html`](docs/pane-mockup.html).
 
----
+## Languages: what is good, what is fair
 
-## How it works
+Seventeen languages speak and understand. They are **not** equally good, and
+pretending otherwise would be the dishonest part of this project. Three independent
+things vary, for three different reasons:
 
-```
-        hold button                 release
-             │                         │
-   ┌─────────▼─────────┐     ┌─────────▼─────────┐      ┌──────────────────┐
-   │ microphone open   │────▶│ clip in memory    │─────▶│ transcribe       │
-   │ (only while held) │     │ (never a file)    │      │ local · Gradium  │
-   └───────────────────┘     └───────────────────┘      └────────┬─────────┘
-                                                                  │ text
-                                                     ┌────────────▼─────────┐
-                                                     │ intent reframer      │
-                                                     │ deterministic, local │
-                                                     └────────────┬─────────┘
-                                                                  │ proposal
-                   ┌──────────────────────────────────────────────▼─────────┐
-                   │ shown in large text · edit · candidates if it is unsure │
-                   └──────────────────────────────┬─────────────────────────┘
-                                                  │ "Speak it"
-                                     ┌────────────▼─────────────┐
-                                     │ Phonon 31m synth (local) │──▶ audio in RAM ──▶ speaker
-                                     └──────────────────────────┘
-```
+| Tier | Languages | Speaks & understands | Rebuilds the sentence | Why |
+|---|---|---|---|---|
+| **A — reference** | English | ✅ | ✅ | Phonon 31m voices (Apache-2.0, 37 voices) are the best audio here; Whisper has most training data for English; the grammar pack is written and checked against real usage |
+| **B — good** | French, German, Spanish, Italian, Portuguese, Dutch | ✅ | ✅ | Piper `medium` voices are clear but more robotic than Phonon; Whisper is strong in these; the grammar pack (verbs, time spans, determiners, verb-final order for German and Dutch) is written and tested |
+| **C — fair** | Polish, Russian, Turkish, Arabic, Hindi, Japanese, Mandarin, Korean, Thai, Vietnamese | ✅ | ❌ *polished only* | one voice each for Japanese, Korean and Thai; less Whisper training data for some; and **no grammar pack** — see below |
 
-Nothing but the audio ever crosses a process boundary, and the audio is a
-base64 blob in a request body — not a file, not a URL, not a cache entry.
+**Why tier C has no grammar pack.** A pack is a table of verb forms, time
+expressions, frame words, determiners and a courtesy template — about 80 lines,
+importable and testable. What it also needs is a **native speaker to check it**.
+Shipped unchecked, it produces confident wrong grammar, and the people this tool
+serves are the least able to work around a machine that sounds foreign in their own
+language. Seven checked languages beat seventeen guessed ones.
 
-**The "understanding" step is rules, not a language model.** A fragmented
-transcript is classified (request, question, affirmation, negation, greeting,
-statement) and rebuilt from a small, auditable rule set. That is a deliberate
-trade: it runs offline, answers in milliseconds, gives the same answer twice,
-and can be unit-tested line by line. When the rules are unsure they say so,
-offer up to three candidate sentences, and ask before speaking.
+What tier C gets instead, and the pane says so in the sentence you read: punctuation
+tidied, first letter capitalised, the language's own politeness word appended, a
+confirmation question in that language — and **word order untouched**.
 
 ```
-"I need... appointment... Tuesday... move."
-   → "Could you move the appointment to Tuesday, please?"      (confidence 0.95)
-"medicine"                                                       (confidence 0.35)
-   → asks: "I'm not sure I got that. Is this what you meant?"
+en  Could you move the appointment to Tuesday, please?          rebuilt
+fr  Pourriez-vous déplacer le rendez-vous pour mardi, s'il vous plaît ?   rebuilt
+de  Könnten Sie meinen Termin von Dienstag auf Donnerstag bitte verschieben?  rebuilt
+es  ¿Podría cambiar mi cita del martes al jueves, por favor?   rebuilt
+it  Potrebbe spostare il mio appuntamento da martedì a giovedì, per favore?  rebuilt
+pt  Poderia mudar a minha consulta de terça para quinta, por favor?  rebuilt
+nl  Kunt u mijn afspraak van dinsdag naar donderdag verplaatsen, alstublieft?  rebuilt
+ja  火曜日から木曜日にかえてください、お願いします。                polished
+ru  Мне нужно перенести встречу на четверг, пожалуйста.          polished
 ```
 
-Certain words always trigger the confirmation question regardless of confidence:
-`no`, `stop`, `yes`, `help`, `hurt`, `fall`, `medication`, `money`, `sign`,
-`address`, `emergency` and similar. A speech bridge must never sound confident
-on the sentence where confidence is dangerous.
+**Recognisers:** `faster-whisper small` for every language (an `.en`-only model is
+never left in place for a non-English language — it returns fluent nonsense instead
+of an error, the worst possible failure here). `tiny` and `base` remain selectable
+overrides; both are measurably worse.
 
----
+**Voices:** English — Phonon 31m, 37 catalog voices. The other sixteen — Piper, 108
+voice models in a bundled offline index (7 French, 10 German, 9 Spanish, 4 Chinese,
+3 Hindi, 3 Vietnamese, 1 each for Japanese/Korean/Thai). Japanese needs
+`clearvoice[ja]` (pyopenjtalk) and Thai `clearvoice[th]` (tltk, pandas,
+unicode-rbnf); the pane prints the exact command when one is missing.
 
-## Privacy model
-
-| Question | Answer |
-|---|---|
-| Is the microphone ever always-on? | No. It is opened on press and every track is stopped on release; the pane tears the stream down on unmount too. |
-| Where does the audio live? | In memory, for the seconds between release and transcription. |
-| Is audio written to disk? | Never. No WAV, no temp recording, no cache. (This is asserted by tests using a CPython audit hook.) |
-| Are transcripts stored? | Only in RAM, for the current app session, so you can re-read or repeat the last sentence. **Clear session** empties it; a restart starts empty. |
-| Is anything sent off-device? | Not by default. The on-device path makes **no network call at all**. Gradium cloud is opt-in, off by default, needs your own key, and is selected per backend. |
-| Telemetry / accounts / profiles? | None of the three. There is no analytics endpoint in the code, no login, and no behavioural memory. |
-| What *is* on disk? | Only what you explicitly save: the sentences you add with **Save phrase**, in `phrases.json` inside the plugin's data directory. |
-| Can it send messages? | No. It speaks into the room. It has no access to email, calendar, files, contacts or messaging, and no capability to reach them. |
-
-The full statement is in [PRIVACY.md](PRIVACY.md).
-
----
-
-## Accuracy: your own words beat a bigger model
-
-Measured on this machine with `scripts/accuracy_bench.py` (French audio, real
-voice, three runs per condition):
-
-| Setup | mean word-error-rate | mean time |
-|---|---|---|
-| `base` (default) | **22.6%** (22.2–23.1%) | 1.15 s |
-| `small` | **5.6%** (0.0–11.1%) | 2.80 s |
-| `base` + hotword list | **5.6%** (0.0–11.1%) | 0.99 s |
-| `base` + **personal dictionary** (shipped path) | **3.8%** | 0.89 s |
-
-Six runs per condition, French, the on-device voice synthesising the test audio.
-The spread is real — quantised CPU inference wobbles on borderline words — so
-treat these as orders of magnitude, not a benchmark ranking. The shape is what
-matters: **the dictionary cut errors by 6× and made the slowest option
-unnecessary.**
-
-A short word list — the names, streets, medications and phrases *you* use — passed
-to the recogniser as a prompt fixes repeated errors and costs nothing in latency.
-That is the **Personal dictionary** in the pane:
-
-- **Add words** you say often (a name, a street, a treatment). They bias the
-  recogniser toward them.
-- **Learn from my corrections** (off by default). When you fix a proposed
-  sentence, the pair "what it heard → what you meant" is stored locally and
-  applied to later transcripts.
-- Everything is visible in the pane, deletable in one click, and kept in
-  `dictionary.json` in the plugin's data folder. **Nothing is shared, ever** — no
-  community packs, no upload, no telemetry.
-
-If accuracy feels unreliable, that is the first thing to turn on: a dozen words
-usually does more than a model three times slower.
-
----
-
-## Languages and voices
-
-ClearVoice speaks and understands **17 languages**, all on-device:
-
-| | |
-|---|---|
-| **Languages** | English, French, German, Spanish, Portuguese, Italian, Dutch, Polish, Russian, Turkish, Arabic, Hindi, Japanese, Mandarin Chinese, Korean, Thai, Vietnamese |
-| **Recognition** | faster-whisper `small`, multilingual — the accuracy-first default measured below. `tiny`/`base` remain available as explicit overrides and are 2–3× worse. An `.en`-only model is never left in place for a non-English language — it would return fluent nonsense instead of an error, which is the worst possible failure here |
-| **Voice, English** | Phonon 31m (Apache-2.0), **37 catalog voices** — Zoey, Juniper, Everly, Harper, Hadley, Delia … downloaded once per voice |
-| **Voice, other 16** | **Piper** (MIT runtime). 108 voice models in the bundled index: 7 French, 10 German, 9 Spanish, 4 Chinese, 3 Hindi, 3 Vietnamese, and one each for Japanese, Korean and Thai |
-| **Voice picker** | In the pane: pick a language, then any voice for it. The choice is remembered (`ctx.storage`), never written into `config.yaml` |
-| **Out of the box** | All 17 voice a sentence, verified by real synthesis on this machine. **Thai** needs `pip install tltk pandas requests unicode-rbnf` and **Japanese** needs `pyopenjtalk` (declared as optional extras `clearvoice[th]` / `clearvoice[ja]`; `pyopenjtalk` may build from source, so have `cmake` and a C++ compiler). The pane flags a language whose voice is not installed yet and prints the exact command |
-| **Sentence rewriting** | **Rebuilt** in 7 languages — English, French, German, Spanish, Italian, Portuguese, Dutch: verb found, time expression lifted, courtesy frame rebuilt, including verb-final order for German and Dutch. **Polished** in the other 10: tidied, capitalised, closed with the language's politeness word, confirmation question in that language, word order untouched — and the pane says which |
-
-```
-en  Could you move the appointment to Tuesday, please?
-fr  Pourriez-vous déplacer le rendez-vous pour mardi, s'il vous plaît ?
-de  Könnten Sie meinen Termin von Dienstag auf Donnerstag bitte verschieben?
-es  ¿Podría cambiar mi cita del martes al jueves, por favor?
-it  Potrebbe spostare il mio appuntamento da martedì a giovedì, per favore?
-pt  Poderia mudar a minha consulta de terça para quinta, por favor?
-nl  Kunt u mijn afspraak van dinsdag naar donderdag verplaatsen, alstublieft?
-ja  火曜日から木曜日にかえてください、お願いします。      ← polished, not rebuilt
-ru  Мне нужно перенести встречу на четверг, пожалуйста.  ← polished, not rebuilt
-```
-
-Adding a language is now a **table**, not a module: `Pack` in
-`clearvoice_engine/intent_packs.py` holds the verbs, time words, frame words,
-determiners and the courtesy template, and the pipeline — strip the frame, lift the
-time, keep the object with its article — is shared. ~80 lines per language, and a
-native speaker can review a table without reading the engine.
-
-### Nothing leaves the machine. There is no model in the path.
+### There is no language model in the path
 
 An earlier version could hand the transcript to a cloud model to "make it clearer".
 It paraphrased, dropped details and invented content — so the path is **deleted**,
-not disabled. Today a transcript becomes one sentence through rule packs only, on
-this machine:
+not hidden behind a switch. A transcript becomes one sentence in three ways, all
+local: `verbatim` (your words), `literal` (your words in a plain order), `courteous`
+(rebuilt with a checked grammar pack). Unplug the network and every part of this
+still works.
 
-- `verbatim` (default) — your words, tidied at the edges;
-- `courteous` — your words re-ordered into a polite frame, in the seven languages
-  whose grammar is checked (en, fr, de, es, it, pt, nl);
-- `polish` — for the other ten: punctuation, capital, the language's own politeness
-  word, word order untouched.
+## Accuracy, measured
 
-No account, no key, no telemetry, no model download beyond speech and voice.
-Unplug the network and every part of this still works.
+Every number below was produced on the development machine (16-core CPU, no GPU),
+with real audio from the local voices through the real recogniser. The scripts are
+in `scripts/`.
 
-Why two engines: Gradium's only permissively-licensed Phonon checkpoint is
-English — the multilingual 40m model is **CC BY-NC**, which a commercial plugin
-cannot ship. Piper fills every other language under MIT. Neither makes a network
-call while you speak; each engine downloads a model once, on first use, and
-says so in the privacy badge.
+**Recogniser choice** — four sentences, two French, two English:
 
-Measured on a small desktop CPU, no GPU: French sentence → **0.26 s** of
-synthesis at 22 kHz (Piper), Japanese/Thai/Korean the same engine and order of
-magnitude. First use of a language downloads its voice (~60–80 MB) and the first
-utterance in that language pays a one-time model load.
+| Model | Mean word error rate | Mean time |
+|---|---|---|
+| `base` | 9.4 % | 1.1 s |
+| **`small` (default)** | **3.1 %** | **2.8 s** |
+| `medium` | 6.2 % | 15.5 s |
 
-Fair warning on quality: English (Phonon) is noticeably more natural than the
-non-English Piper voices, and the single-voice languages (Japanese, Korean, Thai)
-are the weakest of the set. They are intelligible; they are not premium. That is
-a limitation of the permissive-licence landscape, not a configuration mistake,
-and it is stated here rather than discovered in a demo.
+`medium` is both slower and worse on short clips, so `small` is the default
+everywhere.
 
-### Local Phonon — default, on-device
+**Personal dictionary** — six runs per condition, French, harder sentences:
 
-ClearVoice uses **Phonon 31m English**, Gradium's 31-million-parameter TTS model
-released under **Apache 2.0**, through `ptts`, its official runtime
-([gradium-ai/xn-ptts](https://github.com/gradium-ai/xn-ptts)). Inference runs on
-your CPU. On a small desktop-class machine a short sentence synthesizes in about
-0.8–1.3 s including model load, at 24 kHz mono.
+| Setup | Mean WER | Mean time |
+|---|---|---|
+| `base`, no dictionary | 22.6 % | 1.15 s |
+| `small` | 5.6 % | 2.80 s |
+| `base` + hotword list | 5.6 % | 0.99 s |
+| **`base` + personal dictionary (shipped path)** | **3.8 %** | **0.89 s** |
 
-The first synthesis downloads the checkpoint (~64 MB) from Hugging Face. After
-that the voice works with the network unplugged.
+The spread between runs is real — quantised CPU inference wobbles on borderline
+words — so read these as orders of magnitude, not a leaderboard. The shape is what
+matters: **your own words beat a bigger model**, at no latency cost.
 
-The **CC BY-NC** Phonon 40m models are not used, not downloaded, and not
-referenced by this plugin — a commercial-use plugin has no business near a
-non-commercial licence.
+The dictionary lives in the pane:
 
-### Local speech-to-text — default, on-device
+- **Add words** you say often (a name, a street, a treatment). They are passed to the
+  recogniser as a prompt and also normalise the spelling in the transcript, so
+  `rendez vous`, `rendezvous` and `rendez-vous` are one entry.
+- **Learn from my corrections** — off by default. When you fix a sentence, the pair
+  "what it heard → what you meant" is stored locally and applied to later
+  transcripts.
+- Everything is visible, deletable in one click, and lives in `dictionary.json`.
+  **Nothing is shared**: no community packs, no upload, no telemetry.
 
-`faster-whisper` (MIT) with a small English model (`tiny.en` by default,
-~75 MB, downloaded on first use). Decoding is done with `ffmpeg` over pipes —
-stdin in, stdout out — so the recording never touches a temporary file. WAV is
-decoded with the standard library, so a machine without ffmpeg still works for
-WAV input.
+**What raises accuracy, in order of effect:** your own word list; a larger
+recogniser; more of your speech for adaptation. The first is built in, the second is
+a setting, the third is the honest gap — see [Roadmap](#roadmap).
 
-Accuracy note: `tiny.en` is fast and forgiving; it is not perfect. `base.en` or
-`small.en` in Settings → Plugins → ClearVoice are meaningfully better and
-noticeably slower. Because ClearVoice always shows the sentence before speaking
-it, a transcription error costs you an edit — not a wrong thing said out loud.
+## Privacy by construction
 
-### Gradium cloud — optional, off by default
-
-Select `gradium` as a backend, turn on **Allow cloud speech**, and paste your
-own API key in Settings → Plugins → ClearVoice. Three separate consents have to
-line up before a byte leaves the machine: the switch, the backend choice, and
-the key.
-
-| Use | Endpoint |
+| Question | Answer |
 |---|---|
-| Voice | `POST https://api.gradium.ai/api/post/speech/tts` (`output_format: wav`) |
-| Transcript | `POST https://api.gradium.ai/api/post/speech/asr` (NDJSON) |
+| Is the microphone ever always-on? | No. Opened on press, every track stopped on release; the stream is torn down on unmount. |
+| Where does audio live? | In memory, for the seconds between release and transcription. |
+| Is audio written to disk? | Never. No WAV, no temp recording, no cache. Enforced by tests using a CPython audit hook. |
+| Are transcripts stored? | Only in RAM for the current session, so you can re-read or repeat. **Clear session** empties it; a restart starts empty. |
+| Is anything sent off-device? | Not by default: the local path makes **no network call at all**. Gradium cloud is opt-in, off by default, keyed to your own account, and selected per backend. |
+| Telemetry, accounts, profiles? | None of the three. No analytics endpoint, no login, no behavioural memory. |
+| What *is* on disk? | `phrases.json` and `dictionary.json`, in the plugin's own data directory, on an explicit action. |
+| Can it send messages? | No. It speaks into the room. No email, calendar, files, contacts or messaging capability is requested. |
 
-The key is stored in `.env` as `CLEARVOICE_GRADIUM_API_KEY`, read through
-Hermes's secret scope, and never logged, echoed in an error, or shown in the UI,
-which only ever reports whether one is set. When the cloud backend is active the
-pane says so in the privacy badge (`Network: Cloud optional`) — there is no
-silent fallback from local to cloud, ever.
+Full statements: [PRIVACY.md](PRIVACY.md) · [SECURITY.md](SECURITY.md).
 
----
+## Engines
 
-## Installation
+| | Default | Alternative |
+|---|---|---|
+| Speech → text | `faster-whisper` `small`, CPU | Gradium ASR (cloud, opt-in, triple-gated) |
+| Text → speech, English | **Phonon 31m** (Apache-2.0, 37 voices) | Piper |
+| Text → speech, other 16 | **Piper** (MIT runtime, 108 voices) | Gradium TTS (cloud, opt-in) |
 
-### From Git (recommended)
+Why two synthesis engines: Gradium's only permissively licensed Phonon checkpoint is
+English — the multilingual 40m model is **CC BY-NC** and cannot ship in an MIT
+plugin. Piper fills every other language under MIT. Neither makes a network call
+while you speak; each downloads a model once, on first use, and says so.
+
+A short English sentence synthesises in **0.8–1.3 s** on a small desktop CPU; Piper
+runs French in **0.26 s** for 3.3 s of audio. There is no GPU path and no streaming
+TTS in this version.
+
+**Gradium cloud** (optional): select the backend, enable **Allow cloud speech**, add
+your own key. Three consents must line up before a byte leaves the machine, and
+there is no silent fallback from local to cloud. The key is read through Hermes's
+secret scope, never logged or displayed.
+
+## Install
+
+### From the catalogue (once listed)
 
 ```bash
-hermes plugins install thebangarang/clearvoice-hermes-plugin
-hermes plugins enable clearvoice       # consent to the two Python deps
+hermes plugins install clearvoice
+hermes gateway restart
 ```
 
-Then, in Hermes Desktop: **Capabilities → Plugins → ClearVoice → enable**, and
-**Rescan** if the ClearVoice row does not appear in the sidebar. The Desktop half
-is a separate, deliberate switch; the pane will not appear until you flip it.
+### From git
 
-Dependencies are declared in `pyproject.toml` with upper bounds:
-`ptts>=0.6.0,<0.7`, `faster-whisper>=1.2.1,<1.3`, `numpy>=1.26,<3`.
+```bash
+git clone https://github.com/thebangarang/clearvoice-hermes-plugin.git \
+  ~/.hermes/plugins/clearvoice
+hermes plugins enable clearvoice      # resolves Python dependencies
+hermes gateway restart                # a running gateway never switches envs
+```
 
 ### From a local checkout (development)
 
 ```bash
-git clone https://github.com/thebangarang/clearvoice-hermes-plugin
-ln -s "$PWD/clearvoice-hermes-plugin" ~/.hermes/plugins/clearvoice
-hermes plugins enable clearvoice
+hermes plugins link /path/to/Clearvoice-hermes-plugin
+hermes plugins validate /path/to/Clearvoice-hermes-plugin --install-deps
+hermes gateway restart
 ```
 
-A symlinked package is hot-reloaded: saving `desktop/plugin.js` re-syncs the copy
-the app runs.
+Then, in Hermes Desktop: **Capabilities → Plugins → ClearVoice → enable**, and
+**Rescan** if the sidebar row is missing. The Desktop half is a separate, deliberate
+switch; the pane does not appear until you flip it.
 
-### Requirements
+**Requirements:** Hermes Agent ≥ 0.22.0, Python 3.10+, `ffmpeg` on `PATH`, a working
+microphone, and ~600 MB of disk for the speech model plus one voice. First use
+downloads them; afterwards the network can stay unplugged.
 
-- Hermes Agent **>= 0.22.0** (Desktop app for the pane; the tool and slash command work in the CLI too).
-- Python 3.10+ with the plugin's two dependencies (installed for you).
-- `ffmpeg` on `PATH` for Opus/WebM input (that is what the browser records). Without it, WAV input still works.
-- A working microphone. On macOS, Hermes must have microphone permission.
-
-### Verify your install
+**Verify:**
 
 ```bash
-hermes plugins validate ~/.hermes/plugins/clearvoice --install-deps
-hermes plugins doctor ~/.hermes/plugins/clearvoice
-python scripts/smoke_test.py    # real Phonon + real whisper, end to end, no mic needed
+hermes plugins validate . --install-deps   # 16 checks, no host override
+hermes plugins doctor .                    # registrations: 3 tool(s), 0 hook(s)
+python -m pytest -q                         # 160 tests, ~2 s, no network
+python scripts/smoke_test.py                # real models, real audio, no microphone
 ```
 
-`smoke_test.py` synthesizes a sentence, transcribes it back, reframes it, speaks
-the result, and asserts that nothing was written to disk. It is the fastest way
-to know the pipeline works on your machine before you trust it with your voice.
-
----
-
-## Using it
+## Use it
 
 | Action | How |
 |---|---|
@@ -343,30 +300,24 @@ to know the pipeline works on your machine before you trust it with your voice.
 | Change the sentence | **Edit it** → type → **Done editing** → **Speak it** |
 | Hear it again | **Speak it** again; the sentence stays until you cancel |
 | Start over | **Try again**, or **Cancel** (which also clears the session) |
-| Save a sentence you use often | Type or approve it, then **Save phrase** in *My phrases* |
-| Insert a saved phrase | Tap it in *My phrases* — it becomes the sentence, unspoken until you say so |
-| Use it from a chat | `/clearvoice` opens the pane; `/clearvoice <words>` proposes a sentence in the transcript |
-| Let the agent speak | The tool `clearvoice_speak` (see below), always through the pane, never on its own |
-| Transcribe a recording | `clearvoice_transcribe` — audio file in, text out |
-| "Say it again, clearly" on a file | `clearvoice_say_back` — listen, propose, speak |
+| Save a phrase you use often | Approve it, then **Save phrase** in *My phrases* |
+| Use it from a chat | `/clearvoice` opens the pane; `/clearvoice <words>` proposes a sentence |
+| Choose a voice | Language → voice in the pane; remembered in `ctx.storage`, never in `config.yaml` |
 
-### The tools — for the agent, and for your own pipelines
-
-ClearVoice is not only a pane. Three tools are registered for the model, and the
-same code is importable, so a workflow can use whichever half it needs:
+### Three tools for the agent
 
 | Tool | Input → output | Use it for |
 |---|---|---|
-| `clearvoice_transcribe` | `audio_path` → transcript (+ optional reframed sentence) | dictation, voice notes, meeting snippets, subtitles |
-| `clearvoice_speak` | `text` → speech in the pane, or one WAV with `deliver: "file"` | reading something aloud, voice-over, an agent that speaks |
-| `clearvoice_say_back` | `audio_path` → transcript → clear sentence → spoken | repeating an unclear recording so someone else understands it |
+| `clearvoice_transcribe` | audio path → transcript (+ optional sentence) | dictation, voice notes, meeting snippets, subtitles |
+| `clearvoice_speak` | text → speech in the pane, or one WAV (`deliver: "file"`) | an agent that speaks, voice-over |
+| `clearvoice_say_back` | audio → transcript → sentence → spoken | repeating an unclear recording clearly |
 
 `clearvoice_speak` is deliberately two-step:
 
 ```jsonc
-// confirm_required: true (the default) — refuses, and returns the sentence
+// confirm_required: true (default) — refuses, and returns the sentence
 {"spoken": false, "needs_confirmation": true,
- "text": "Could you move the appointment to Tuesday, please?",
+ "text": "I need appointment Tuesday move.",
  "then": "call clearvoice_speak again with confirm_required=false once the user accepts it"}
 
 // confirm_required: false — speaks it, in memory, into the open pane
@@ -374,25 +325,17 @@ same code is importable, so a workflow can use whichever half it needs:
  "delivered_to": "clearvoice pane (in memory)", "saved": false}
 ```
 
-A model cannot make this plugin say something the user has not seen: the pane
-sets `confirm_required: false` only after the user pressed **Speak it** on a
-sentence on screen. If the pane is closed the audio is discarded after 120 s and
-nothing lands on disk.
+A model cannot make this plugin say something the user has not seen: the pane sets
+`confirm_required: false` only after the user pressed **Speak it** on a sentence on
+screen. If the pane is closed the audio is discarded after 120 s and nothing lands
+on disk. `deliver: "file"` is the one path to disk, it writes exactly one WAV into
+the plugin's `speech/` folder, and it stays **off** until you enable *Allow speech
+files*.
 
-`deliver: "file"` is the one way speech reaches the disk, it writes exactly one
-WAV into the plugin's `speech/` folder, and it stays **off** until you enable
-*Allow speech files* in settings. That is what a video, podcast or another agent
-pipeline uses.
+A bundled skill (`skills/clearvoice/SKILL.md`) teaches the agent when to reach for
+each tool and that the approval gate is not optional.
 
-A bundled skill (`clearvoice`) teaches the agent when to reach for each tool and
-that the approval gate is not optional.
-
-### Using it from outside Hermes
-
-Four surfaces, in increasing order of coupling — a shell command with `--json`,
-the plugin's local HTTP routes, a plain Python import of `clearvoice_engine`, or
-the three agent tools. Recipes and the full route table are in
-[docs/INTEGRATION.md](docs/INTEGRATION.md).
+### From a script, a workflow, another app
 
 ```bash
 hermes clearvoice say "The pharmacy closes at six." --json
@@ -400,165 +343,147 @@ hermes clearvoice hear ~/notes/voice-note.webm --json --reframe
 hermes clearvoice say-back ~/notes/mum.webm --out ~/notes/clear.wav
 ```
 
----
+Four surfaces, loosest coupling first: the CLI with `--json`, the plugin's loopback
+HTTP routes (`/api/plugins/clearvoice/`), a plain Python import of
+`clearvoice_engine` (no `ctx`, no gateway, no config), and the three agent tools.
+Recipes and the route table: [docs/INTEGRATION.md](docs/INTEGRATION.md).
 
-## Accessibility notes
+## Accessibility
 
-- **148 px** push-to-talk target, **24 px** proposed sentence, **18–20 px** body
-  and buttons — well above WCAG AA minimums.
-- **High contrast** by construction: text and panels use the app's own theme
-  tokens, so the pane follows light/dark mode and every theme instead of
-  hardcoding a palette that fails one of them.
-- **Full keyboard path**: Tab to the button, hold Space or Enter to talk, release
-  to stop. Every action is a real `<button>`, focus rings are never removed.
-- **Screen readers**: the proposed sentence is an `aria-live="polite"` status
-  region, errors are `role="alert"`, and the button reports `aria-pressed` while
-  listening.
-- **No time limits anywhere**: no countdown, no auto-dismiss, no auto-speak. You
-  can stare at the sentence as long as you like before committing to it.
-- **No dark patterns**: no pre-ticked cloud toggle, no "recommended" upsell, no
-  modal that traps focus, and no confirmation that is easier to accept than to
-  decline.
-- **One decision per screen**: the pane shows a single sentence and four buttons.
-  It is an assistive device, not a dashboard.
+- **148 px** push-to-talk target, **24 px** sentence, **18–20 px** body — above WCAG AA.
+- **Theme-native contrast:** text and panels use the app's tokens, so the pane
+  follows light/dark and every theme instead of hardcoding a palette that fails one.
+- **Full keyboard path:** Tab to the button, hold Space or Enter to talk, release to
+  stop. Every action is a real `<button>`; focus rings are never removed.
+- **Screen readers:** the sentence is an `aria-live="polite"` status region, errors
+  are `role="alert"`, and the button reports `aria-pressed` while listening.
+- **No time limits:** no countdown, no auto-dismiss, no auto-speak. Stare at the
+  sentence as long as you like.
+- **No dark patterns:** no pre-ticked cloud toggle, no upsell, no focus trap, no
+  confirmation that is easier to accept than to decline.
+- **One decision per screen:** one sentence, four buttons. It is an assistive
+  device, not a dashboard.
 
----
+## Limitations
 
-## Limitations (read these)
+Stated plainly, because a user or a judge will find them anyway.
 
-- **17 languages, uneven quality.** English (Phonon) is the best voice here.
-  French, German, Spanish, Portuguese, Italian, Dutch, Polish, Russian, Turkish,
-  Arabic, Hindi, Chinese, Korean, Vietnamese and Thai use Piper `medium` voices
-  and are good for clear speech. Japanese, Korean and Thai have exactly one voice
-  each and are the weakest — intelligible, not premium. Japanese and Thai need an
-  extra phonemizer package (`pyopenjtalk` / `tltk`), declared as optional extras.
-  Recognition uses multilingual Whisper: `base` by default for non-English,
-  `small` for the scripts Whisper handles worst, both selectable.
-- **The reframer is not an LLM.** It handles fragmented, telegraphic speech well
-  and long meandering sentences poorly. It reorders known slot patterns (verb,
-  object, time) rather than understanding arbitrary meaning. When it is unsure it
-  asks instead of guessing — expect that to happen on unusual sentences.
-- **Single utterance at a time.** There is no conversation mode, no wake word, no
-  continuous dictation, and none is planned: those are exactly the behaviours
-  this plugin exists to avoid.
-- **CPU only in this version.** No GPU path, no streaming TTS. Time-to-first-word
-  is roughly half a second to a second and a half on a small desktop.
-- **Voices are chosen, not cloned.** 37 English Phonon voices and 108 Piper
-  voices across 16 languages, but no voice cloning and no custom voice training:
-  Gradium's cloning runs in the cloud and needs an account, which is the opposite
-  of this plugin's defaults.
-- **No conversation history**, so no "what did I say yesterday". That is the
-  privacy promise, and it has a real cost.
-- **Cloud speech is not exercised by the test suite.** The Gradium paths are
-  implemented against the documented REST contract and fail loudly and early
-  (never silently), but they cannot be tested without a key. Treat them as
-  unverified until you have run them once with your own account.
-
----
-
-## Security and data handling
-
-- **No secrets in code.** The Gradium key lives in `.env` via Hermes's secret
-  scope; the plugin never reads `.env`, `auth.json`, or another tool's credential
-  file, and never writes a credential.
-- **Loopback only.** The backend is a router mounted inside Hermes's own gateway
-  (`/api/plugins/clearvoice`). It opens no port, binds no socket, and runs no
-  background process.
-- **No shell, except one fixed call.** The only subprocess is `ffmpeg` with a
-  constant argument vector and audio piped through stdin/stdout — no filename, no
-  user string, no shell.
-- **Bounded input.** Clips over ~12 MB are refused, sentences over 600 characters
-  are refused, and saved phrases are capped at 300 characters.
-- **Untrusted text is text.** The proposed sentence comes from your microphone; it
-  is rendered as a text node in React, never as HTML, and never executed,
-  fetched, or interpolated into a URL.
-- **Least privilege.** The manifest requests no capabilities at all: no
-  `tools.override`, no filesystem/email/calendar capabilities, no shell tool, one
-  process-wide hook — none.
-- **Verifiable.** `tests/test_privacy.py` enforces the negative claims (audit-hook
-  write detection, cloud gating, manifest capability checks); `hermes plugins
-  validate` and `hermes plugins doctor` both pass. Full disclosure in
-  [SECURITY.md](SECURITY.md).
-
----
+- **No speaker adaptation.** A general Whisper on an atypical voice is worse than a
+  model trained on that speaker. Voiceitt asks for 50–200 recorded phrases, Project
+  Relate asked for 500. We ask for a word list — cheaper, weaker. This is the single
+  biggest gap in the product.
+- **Ten of seventeen languages do not re-order a sentence** (tier C above), and the
+  non-English Piper voices are more robotic than Phonon.
+- **~3 s after you release the button** with `small` on a slow CPU. There is a
+  spinner; it is not instant.
+- **The reframer is not a language model.** It handles fragmented, telegraphic
+  speech well and long meandering sentences poorly. When unsure it asks instead of
+  guessing — expect that on unusual sentences.
+- **A muted microphone looks like silence.** The pane says "I didn't catch that"; it
+  cannot tell you the microphone is off.
+- **Single utterance at a time.** No wake word, no continuous dictation, no
+  conversation mode — those are the behaviours this plugin exists to avoid.
+- **No voice cloning.** 37 English and 108 Piper voices, chosen not trained.
+- **Cloud speech is not exercised by the test suite.** The Gradium paths follow the
+  documented REST contract and fail loudly and early, but without a key they are
+  unverified until you run them once.
+- **Not a medical device**, and not a substitute for speech therapy.
 
 ## Development
 
 ```bash
-python -m venv .venv && . .venv/bin/activate
-pip install -e ".[dev]"
-pytest                        # 58 tests, no model download, no network
-python scripts/smoke_test.py  # real models, real audio, in memory
-hermes plugins validate . --install-deps
-hermes plugins doctor .
+python3 -m venv .venv && .venv/bin/pip install -e ".[dev]"
+.venv/bin/python -m pytest -q          # 160 tests, ~2 s, no model download
+hermes plugins validate . && hermes plugins doctor .
+
+python3 scripts/montage_demo.py        # rebuild the demo from three takes in ~/Videos
+python3 scripts/montage_demo.py --no-music --order courteous,verbatim,literal
 ```
+
+| Script | What it does |
+|---|---|
+| `accuracy_bench.py` | word error rate and latency, per model and per dictionary setup |
+| `montage_demo.py` | trims the OBS UI off recorded takes, labels each style, builds the 80 s video |
+| `cut_demo.py` | single-take variant: cuts one long recording to 90 s using silence detection |
+| `api_selftest.py` | exercises every REST route with real audio, without a running gateway |
+| `lang_probe.py` | synthesises a sentence in every language and reports what worked |
+| `piper_diagnose.py` | explains a silent Piper voice (missing phonemiser) |
 
 ### Structure
 
 ```
-clearvoice-hermes-plugin/
-├── plugin.yaml                 # manifest: 1 tool, 0 hooks, 0 capabilities
-├── __init__.py                 # agent half: clearvoice_speak + /clearvoice
-├── pyproject.toml              # ptts, faster-whisper, numpy (bounded)
-├── clearvoice_engine/          # the pipeline, Hermes-free and importable
-│   ├── audio.py                # bytes in, arrays out — never a file
-│   ├── stt.py                  # local faster-whisper · Gradium cloud
-│   ├── tts.py                  # engine routing: Phonon (en) · Piper (others) · Gradium
-│   ├── langs.py                # the 17 languages, voice index, Whisper-model mapping
-│   ├── piper.py                # MIT local engine for every non-English language
-│   ├── intent.py               # deterministic reframer (3 styles), shared scoring
-│   ├── intent_fr.py            # French rule pack: verb forms, time spans, "Pourriez-vous…"
-│   ├── privacy.py              # session store, saved phrases
-│   ├── cloud.py                # Gradium REST, gated and key-safe
-│   ├── settings.py             # validated settings view
-│   ├── runtime.py              # in-process session state + audio outbox
-│   └── data/piper_voices.json  # 108 voices, bundled so the picker works offline
-├── dashboard/
-│   ├── manifest.json           # {"name": "clearvoice", "api": "plugin_api.py"}
-│   └── plugin_api.py           # the pane's REST backend
-├── desktop/
-│   └── plugin.js               # pane, page, nav, palette, status chip
-├── assets/icon.svg
-├── scripts/smoke_test.py
-└── tests/                      # intent · privacy · plugin
+clearvoice_engine/        # the pipeline, Hermes-free and importable
+├── audio.py              # bytes in, float arrays out — never a file
+├── stt.py                # local faster-whisper · Gradium cloud
+├── tts.py                # engine routing: Phonon (en) · Piper (others) · Gradium
+├── langs.py              # 17 languages, voice index, Whisper-model mapping
+├── piper.py              # MIT local engine for every non-English language
+├── intent.py             # reframer entry point + shared scoring
+├── intent_fr.py          # French grammar pack
+├── intent_packs.py       # data-driven packs: de, es, it, pt, nl
+├── intent_langs.py       # polish tier: politeness + confirmation per language
+├── propose.py            # the one place a transcript becomes a sentence
+├── lexicon.py            # your words, learned corrections (opt-in)
+├── privacy.py            # session store, saved phrases
+├── cloud.py              # Gradium REST, gated and key-safe
+├── runtime.py            # in-process session state + audio outbox
+├── settings.py           # validated settings view
+└── data/piper_voices.json  # 108 voices, bundled so the picker works offline
+
+dashboard/plugin_api.py   # FastAPI router the pane talks to (loopback only)
+desktop/plugin.js         # the pane: one ESM file, @hermes/plugin-sdk only
+skills/clearvoice/        # the skill that teaches the agent the three tools
+tests/                    # privacy, packaging, languages, reframer, lexicon, demo
+docs/                     # INTEGRATION.md · DEMO.md · pane-mockup.html
 ```
 
-Two deviations from the original build brief, both forced by the platform, both
-documented rather than hidden:
+Two deviations from the original build brief, both forced by the platform:
 
-1. **The Desktop UI is one ESM `plugin.js`, not four `.tsx` files.** Hermes
-   Desktop loads a disk plugin uncompiled — JSX cannot be parsed, and the only
-   importable specifiers are `@hermes/plugin-sdk`, `react` and
-   `react/jsx-runtime`. The four components named in the brief (`ClearVoicePane`,
-   `PushToTalkButton`, `CaptionPanel`, `PrivacyBadge`) exist as separate
-   components in that file, written with `jsx()` calls.
-2. **The engine is `clearvoice_engine/` at the plugin root**, not
-   `clearvoice/clearvoice/`. A nested package of the same name as its parent
-   directory breaks path-based imports; the flat, uniquely named package is
-   importable from both entry points (the agent half and the REST backend) and
-   from the tests.
+1. **The Desktop UI is one ESM `plugin.js`, not four `.tsx` files.** Hermes Desktop
+   loads a disk plugin uncompiled — JSX cannot be parsed, and the only importable
+   specifiers are `@hermes/plugin-sdk`, `react` and `react/jsx-runtime`. The four
+   components named in the brief exist as separate components in that file, written
+   with `jsx()` calls.
+2. **The engine is `clearvoice_engine/` at the plugin root**, not a nested package
+   of the same name as its parent — a nested package breaks path-based imports; the
+   flat, uniquely named one is importable from both entry points and the tests.
 
----
+Decisions and their rejected alternatives: [decisions.md](decisions.md). What
+happened when, mistakes included: [worklog.md](worklog.md).
 
-## Hackathon submission checklist
+## Roadmap
 
-- [x] Installs cleanly into Hermes (`hermes plugins install` / linked checkout)
-- [x] Desktop pane works (pane, full page, sidebar row, palette command, status chip)
-- [x] Push-to-talk capture works (press/release, keyboard, pointer-capture safe)
-- [x] STT works on at least one backend (local faster-whisper, verified end to end)
-- [x] Intent clarification works (rules, confidence, candidates, confirmation)
-- [x] Phonon local TTS works (Apache-2.0 31m, on CPU, verified end to end)
-- [x] Optional Gradium backend implemented, **disabled by default**, triple-gated
-- [x] No audio or transcript persisted during normal use (audit-hook tested)
-- [x] `hermes plugins validate . --install-deps` passes
-- [x] `README.md`, `PRIVACY.md`, `LICENSE`, `tests/`, `HACKATHON_SUBMISSION.md` complete
-- [ ] Public repository published
-- [ ] Catalog pull request opened
-- [ ] 90-second demo video recorded
+1. **Speaker adaptation** — the honest fix for accuracy. Euphonia's research shows
+   useful adaptation from 3–4 minutes of a speaker's audio; a personal acoustic
+   adapter, kept on-device, is the difference between "works for clear speech" and
+   "works for this person".
+2. **More grammar packs**, each with a native reviewer. Next: Russian, Polish,
+   Turkish.
+3. **Phrase-bank matching** — recognise *your* recorded phrases by voice, the
+   discrete approach commercial tools used before per-speaker models.
+4. **Streaming TTS** and a GPU path, for sub-second time-to-first-word.
 
-See [HACKATHON_SUBMISSION.md](HACKATHON_SUBMISSION.md) for the pitch, the demo
-script, and the submission state.
+## Hackathon submission
+
+- [x] Installs cleanly (`hermes plugins install` / linked checkout)
+- [x] Pane, page, sidebar row, palette command, status chip
+- [x] Push-to-talk capture (pointer, touch, keyboard, pointer-capture safe)
+- [x] Local STT verified end to end; optional cloud backend implemented off by default
+- [x] Local TTS in 17 languages, verified by real synthesis
+- [x] Reframing: 7 checked grammar packs, 10 honest polish tiers
+- [x] Nothing persisted during normal use (audit-hook tested)
+- [x] `validate` and `doctor` pass; 160 tests
+- [x] Public repository published, demo video cut
+- [ ] Catalogue pull request opened
+
+Pitch, verification table and submission state:
+[HACKATHON_SUBMISSION.md](HACKATHON_SUBMISSION.md).
 
 ## Licence
 
-MIT — see [LICENSE](LICENSE). Model and runtime licences are listed there too.
+MIT — see [LICENSE](LICENSE). Phonon voices Apache-2.0 via `ptts`; Piper MIT;
+faster-whisper MIT; Whisper weights MIT.
+
+Not affiliated with Voiceitt or Google Research: their products solve the recognition
+problem more thoroughly. This one solves a different constraint — no account, no
+cloud, no trace — and says so.

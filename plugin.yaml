@@ -1,5 +1,5 @@
 name: clearvoice
-version: 0.7.0
+version: 0.7.1
 manifest_version: 2
 description: >
   Privacy-first push-to-talk speech-clarity bridge, in 17 languages. You speak

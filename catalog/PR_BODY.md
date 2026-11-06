@@ -20,7 +20,7 @@ sends messages, and it keeps nothing.
 
 ## Hermes surfaces used
 
-- `ctx.register_tool` — one tool, `clearvoice_speak`.
+- `ctx.register_tool` — three tools: `clearvoice_transcribe`, `clearvoice_speak`, `clearvoice_say_back`.
 - `ctx.register_command` — `/clearvoice`.
 - Desktop plugin SDK — `panes`, `routes`, `sidebar.nav`, `palette`,
   `statusBar.right`; `ctx.rest` into the plugin's own `/api/plugins/clearvoice`
@@ -55,7 +55,7 @@ weights; the CC BY-NC 40m checkpoints are not used or referenced.
 
 - `hermes plugins validate . --install-deps` → **Validation passed** (all checks
   green, including `security scan`, `no core override`, `desktop surface`).
-- `hermes plugins doctor .` → `1 tool(s), 0 hook(s)`.
+- `hermes plugins doctor .` → `3 tool(s), 0 hook(s)`.
 - `pytest` → 38 passed, including the no-disk-write audit-hook test and the cloud
   gating tests.
 - `python scripts/smoke_test.py` → real Phonon synth → real faster-whisper
@@ -71,7 +71,8 @@ after the recording. Both are required by the README-copy rule for
 
 ## Note on scope
 
-The plugin is English-first and CPU-only in 0.1.0; both are stated in the README's
+The plugin is CPU-only in 0.7.0, English is the reference language, and ten of the
+seventeen languages are polish-only; all of it is stated in the README's
 limitations section rather than left for a reviewer to discover. The Gradium cloud
 paths are implemented against the published REST contract but are not exercised
 in CI (no key exists there) — they fail closed, early, and with a plain message.

@@ -103,12 +103,12 @@ and both default to **off**.
 | No audio file, ever | `clearvoice_engine/audio.py` has no filesystem API in it; `test_full_pipeline_writes_no_audio_and_no_transcript` runs the real pipeline under a CPython audit hook and asserts **zero** write-mode `open()` calls |
 | No transcript persisted | transcripts live in a 12-slot in-memory ring; `test_session_store_holds_nothing_after_clear` |
 | Cloud disabled unless enabled | `test_cloud_stt_is_refused_when_not_enabled` / `…_tts_…` instrument the HTTP layer and fail if it is even *called* while cloud is off |
-| No filesystem / mail / calendar / contacts / messaging capability | manifest declares no `capabilities` and one tool; `test_manifest_declares_one_tool_and_no_broad_capabilities` |
+| No filesystem / mail / calendar / contacts / messaging capability | manifest declares no `capabilities` and three narrow tools; `test_manifest_declares_the_three_tools_and_no_broad_capabilities` |
 | No saved audio on an implicit action | `/phrases` returns 409 without `explicit: true`; `/speak` returns 409 without `approved: true` |
 
 ## Technical implementation notes
 
-- **Speech to text.** `faster-whisper` (MIT) with `tiny.en` by default. Browser
+- **Speech to text.** `faster-whisper` (MIT) with multilingual `small` by default. Browser
   audio is Opus/WebM; it is decoded by `ffmpeg` over **pipes** (stdin → stdout),
   so the recording never touches a temporary file. WAV is decoded with the
   standard library. An RMS energy gate runs first, so silence never costs a model
@@ -134,10 +134,11 @@ and both default to **off**.
   swapped out automatically for any non-English language, because a `.en` model
   does not fail on French — it invents fluent nonsense, the worst possible
   failure for someone whose speech is already misunderstood.
-- **The rewrite is a choice, not a policy.** `courteous` (default) rebuilds a
-  polite request, `literal` keeps your words in a plain order, `verbatim` changes
-  nothing but the edges. The user picks; the pane shows "You said: …" underneath
-  either way, so the transformation is never hidden.
+- **The rewrite is a choice, not a policy.** `verbatim` (default) changes nothing
+  but the edges, `literal` puts your words in a plain order, `courteous` rebuilds a
+  polite request — and only where a checked grammar pack exists (en, fr, de, es,
+  it, pt, nl). The other ten are polished, never re-ordered. The pane shows
+  "You said: …" underneath either way, so the transformation is never hidden.
 - **The agent tool is deliberately two-step.** `clearvoice_speak` returns a
   `needs_confirmation` payload instead of speaking unless
   `confirm_required: false`, and `POST /speak` separately requires
@@ -154,31 +155,32 @@ Measured on the development machine (small desktop CPU, no GPU):
 |---|---|
 | Phonon synth (cold) | 1.2–1.3 s |
 | Phonon synth (warm) | 0.8 s |
-| faster-whisper `tiny.en` on a 3 s clip | 1.4 s |
+| faster-whisper `small` on a 3 s clip | 2.8 s |
 | Reframe | < 1 ms |
 | Round trip in the pane | ~3 s for a 3 s sentence to become clear speech |
 
-## Demo video script (≤ 90 s)
+## Demo video (80 s, recorded)
 
-| Time | Shot | What is on screen |
-|---|---|---|
-| 0–5 s | Title card | **"ClearVoice — speak naturally. Be understood clearly."** (white on dark, the pane's own type) |
-| 5–15 s | A person at a laptop, holding the big button, speaking with effort: *"I need… appointment… Tuesday… move."* | Pane reads **Listening**, the button filled with the accent colour, privacy line already visible at the top |
-| 15–30 s | Release. **Understanding** for ~2 s, then the sentence lands | Large text: **"Could you move the appointment to Tuesday, please?"** and below it, small: *You said: "I need appointment Tuesday move."* |
-| 30–45 s | Finger hits **Speak it** | **Speaking**, then a clear voice says the sentence. Caption stays on screen. |
-| 45–60 s | Slow push-in on the privacy badge | **"Audio processed this session only. Nothing saved."** · Hearing: On-device · Voice: On-device (Phonon 31m) · Network: Offline |
-| 60–75 s | Deliberate failure: hold, say nothing (or a noisy room) | **"I didn't catch that — try again."** then **Start over** → back to Ready. Shows the recovery, not a crash |
-| 75–90 s | End card | **"No background listening. No saved audio. Built with Hermes + Phonon."** · `github.com/thebangarang/clearvoice-hermes-plugin` |
+`demo/clearvoice-demo.mp4` — three takes, one per rewrite style, cut automatically
+by `scripts/montage_demo.py` from a single recording session with the OBS window
+visible at the head and tail of each file.
 
-Voice-over, in the same order: *"She speaks. ClearVoice listens only while the
-button is held. It writes down what it heard, shows her one clear sentence — she
-can change it, or throw it away. She taps Speak it. The voice is on her machine,
-the audio was never saved, and nothing left the laptop. ClearVoice may help
-people be understood more clearly. It is not a medical device."*
+| Time | Content |
+|---|---|
+| 0:00 | Title: *ClearVoice — one recording, three ways to say it* |
+| 0:03 | Intro: hold one button / words appear, big and editable / nothing spoken until you approve |
+| 0:08 | Intro: on this machine, not in a cloud / Whisper small, ~3 % WER, 2.8 s / no account, no upload, no saved audio |
+| 0:13 | Divider: three styles, one recording |
+| 0:16 | **Verbatim** take, labelled "exactly your words — only capital and full stop added" |
+| 0:35 | **Literal** take, labelled "your words, put into a plain order" |
+| 0:45 | **Courteous** take, labelled "rebuilt as a polite sentence — checked grammar from the rule pack, not a model guessing" |
+| 0:59 | Outro: every mode is a tool (`transcribe` / `speak` / `say_back`) |
+| 1:04 | Outro: drops into a workflow, a script, an app — local HTTP routes, a Python import, a bundled skill |
+| 1:10 | Outro: all of it runs here; your voice never leaves the machine |
+| 1:15 | End card |
 
-Rules for the recording: no medical claims, no "treatment", no "cure", no
-"restores speech". Show the failure and the recovery — that is what makes the
-privacy and the error handling believable.
+The music bed is synthesised with ffmpeg and sits 12 dB under the speech, on the
+text cards only — nothing licensed, nothing to credit.
 
 ## Validation output
 
@@ -211,12 +213,12 @@ Validation passed.
 
 ```
 Plugin Doctor: /home/hermes/projects/Clearvoice-hermes-plugin
-  manifest: clearvoice 0.2.0 (standalone)
+  manifest: clearvoice 0.7.0 (standalone)
   OK: runtime discovery, manifest parsing, import, and registration passed
   registrations: 3 tool(s), 0 hook(s)
 ```
 
-Unit tests: `75 passed`. End-to-end smoke test (real models, no microphone):
+Unit tests: `160 passed`. End-to-end smoke test (real models, no microphone):
 
 ```
 1. synthesizing with on-device Phonon ... 138284 bytes, 2.88s of speech, 1310 ms
@@ -245,8 +247,8 @@ data dir holds: ['phrases.json']   (the one phrase the test saved on purpose)
   rule-13 disclosure block (network, shell, background, stored credentials).
 - **Catalog PR link:** _pending — opened after the repository is published and
   the commit SHA exists._
-- **Public repository:** _pending — `github.com/thebangarang/clearvoice-hermes-plugin`._
-- **X demo video:** _pending — recorded from the shot list above._
+- **Public repository:** https://github.com/thebangarang/clearvoice-hermes-plugin
+- **X demo video:** `demo/clearvoice-demo.mp4` (80 s, in this repository)
 
 Nothing above is marked done until the link exists. The plugin is not submitted
 to the catalog before validation passes; it passes.
@@ -285,7 +287,8 @@ to the catalog before validation passes; it passes.
 | No audio/transcript persisted | ✅ audit-hook test |
 | `validate --install-deps` passes | ✅ output above |
 | Docs complete | ✅ README, PRIVACY, SECURITY, LICENSE, this file |
-| Public repo / catalog PR / demo video | ⏳ pending publication |
+| Public repo / demo video | ✅ published |
+| Catalog PR | ⏳ pending |
 
 ## Positioning
 

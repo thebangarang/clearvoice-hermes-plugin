@@ -67,7 +67,7 @@ settings = Settings.from_mapping({"language": "fr", "tts_backend": "auto"})
 dictionary = lexicon.Lexicon("/home/me/.config/my-app")
 
 text = stt.transcribe(Path("note.webm").read_bytes(), settings, lexicon=dictionary)
-proposal = intent.reframe(text.text, settings.rewrite_style)
+proposal = intent.reframe(text.text, settings.rewrite_style, language=settings.language)
 audio = tts.synthesize(proposal.message, settings)      # WAV bytes, in RAM
 ```
 

@@ -101,8 +101,6 @@ class Proposal:
     confirmation_question: str = ""
     reason: str = ""
     style: str = "courteous"
-    engine: str = "local"        # "local" (rule pack) or "gateway" (the user's model)
-    cost_usd: float | None = None
 
     def public(self) -> dict:
         return asdict(self)
@@ -292,9 +290,9 @@ def reframe(transcript: str, style: str = "courteous", language: str | None = No
     """Turn a raw transcript into a proposed clear sentence.
 
     ``style`` decides how much is rebuilt:
-    ``courteous`` (default) — reorders into a polite request, the brief's flow;
+    ``verbatim`` (default) — exactly what was recognised, tidied only at the edges;
     ``literal`` — the user's own words in a plain order, no courtesy frame;
-    ``verbatim`` — exactly what was recognised, tidied only at the edges.
+    ``courteous`` — reorders into a polite request, only where a grammar pack exists.
 
     ``language`` picks the rule pack. English and French have their own tables,
     because a reframer that only knows English returns French unchanged — which

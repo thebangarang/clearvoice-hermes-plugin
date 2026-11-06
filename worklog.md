@@ -1,5 +1,30 @@
 # Worklog
 
+## 2026-11-06 (v0.7.1) — repository audit, README rebuilt, honest language table
+
+**Asked:** verify the whole repo for errors and stale claims, make the README feel
+professional, and write the language limitations down honestly.
+
+**Audit found and fixed:**
+- `Proposal.engine` / `cost_usd` were leftovers from the deleted model path — removed.
+- the reframer docstring still called `courteous` the default (it is `verbatim`).
+- HACKATHON_SUBMISSION.md claimed `tiny.en`, `courteous` by default, "one tool",
+  "75 passed", version 0.2.0 and a demo that was never shot. All replaced with the
+  shipped facts (small, verbatim, three tools, 160 tests, 0.7.0, the 80 s cut).
+- catalog entry and PR body: three tools instead of one, 0.7.0 instead of 0.1.0.
+- project-context.md and AGENTS.md: version, engine list, and two new hard rules —
+  no language model in the reframing path, no unreviewed grammar pack.
+- docs/DEMO.md described the abandoned single-take cutter; rewritten around the
+  three takes and `montage_demo.py`.
+- README rebuilt from scratch: badges, the demo, a tier table for the 17 languages
+  with the *reasons* (voice quality, Whisper data, grammar review), the measured
+  accuracy numbers with `small` as the default, an honest limitations section, and
+  a roadmap that names speaker adaptation as the real gap.
+
+Nothing in this pass changed behaviour except removing two dead dataclass fields;
+tests stayed green at 160.
+
+
 ## 2026-11-05 (v0.7.0) — all local, no exceptions
 
 **Decided with the user:** remove the model-assisted path entirely and ship a local

@@ -17,20 +17,22 @@ description: >-
   Shell: one ffmpeg call with a constant argv, audio over stdin/stdout, no shell and no user text in
   the command. Background processes: none. Credentials: never written by the plugin; the optional
   Gradium key is read through agent.secret_scope. Filesystem: reads and writes only its own data
-  directory. Capabilities: none requested — one tool (clearvoice_speak) and one slash command
+  directory. Capabilities: none requested — three tools (clearvoice_transcribe, clearvoice_speak, clearvoice_say_back), one CLI command and one slash command
   (/clearvoice); the agent cannot make it speak text the user has not seen (two independent
   approval gates). Desktop half uses only @hermes/plugin-sdk: a pane, a route, a sidebar row, a
   palette entry and a status-bar chip.
 maintainer: thebangarang
 tier: community
 category: voice
-version: "0.7.0"
+version: "0.7.1"
 docs_url: https://github.com/thebangarang/clearvoice-hermes-plugin/blob/main/README.md
 platforms: [linux, macos, windows]
 title: ClearVoice
 capabilities:
   provides_tools:
+    - clearvoice_transcribe
     - clearvoice_speak
+    - clearvoice_say_back
   provides_hooks: []
   provides_middleware: []
   requires_env: []

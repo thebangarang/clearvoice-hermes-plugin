@@ -1,70 +1,73 @@
-# Filming the demo — you do not perform
+# Filming the demo
 
-The old plan asked you to hit ten beats inside 90 seconds while driving a UI.
-That is a video-editor's job, not a user's, and it is why this file exists: the
-cut follows your recording instead of the other way round.
+The demo is **three short takes, one per rewrite style**, recorded in one sitting,
+then cut together automatically. You do not perform to a script and there is no
+length to hit.
 
-## What you actually do
+## What you record
 
-One language: English. A French take without the before/after of the dictionary
-looks like a bug rather than a demo, so it stays out of this video.
+Open ClearVoice, open OBS with screen capture + microphone + desktop audio (the
+app's own voice in the take is the proof), then record three takes:
 
-1. Open ClearVoice in the Desktop app.
-2. In OBS: **Start Recording**. (Screen capture + mic. Desktop audio on, so the
-   app's own voice is in the take — that is the proof.)
-3. Use ClearVoice the way you would use it for real:
-   - hold the button, say something, let go
-   - read the sentence it proposes
-   - press **Speak it** and listen
-   - let it miss a word — a name, a street — and then add that word in the
-     dictionary panel and say the sentence again, so the progression is visible
-4. Press **Stop Recording**. Save to `~/Videos/clearvoice-raw.mkv`.
+| Take | Save as | What to do in it |
+|---|---|---|
+| 1 | `~/Videos/Verbatim.mkv` | Set the style to **verbatim**, hold to talk, say a normal sentence with a name in it, release, read what appears, press **Speak it** |
+| 2 | `~/Videos/Litteral.mkv` | Switch to **literal**, say the same kind of sentence, let it put your words in a plain order |
+| 3 | `~/Videos/Courteous.mkv` | Switch to **courteous**, say a fragmented sentence, let the grammar pack rebuild it |
 
-No length to hit. Fumbling at the start is fine, it gets cut. A long silence in
-the middle is fine, it gets cut. Three minutes is fine, it gets cut to 90.
+Press start/stop around each take; the OBS window at the head and tail of each file
+is expected and gets removed. Fumbling, pauses and a second attempt are all fine.
 
-## What the build does with it
+## What the build does
 
-```
-./scripts/build_demo.sh            # reads ~/Videos/clearvoice-raw.mkv
-./scripts/build_demo.sh --narration   # same, plus the on-device voice-over
+```bash
+python3 scripts/montage_demo.py             # ~/Videos/{Verbatim,Litteral,Courteous}.mkv
+python3 scripts/montage_demo.py --no-music
+python3 scripts/montage_demo.py --order courteous,verbatim,literal
 ```
 
-1. `silencedetect` reads the audio track and returns where you were active.
-   Short gaps are merged so a sentence is never cut in half; the result is a
-   handful of "moments".
-2. Moments are kept in order until 86 seconds of screen are used up. Anything
-   left over is dropped from the end, never from the middle of an action.
-3. A 3-second title card, the kept moments, then a 4-second end card: 90 seconds
-   at most, 1920×1080, 30 fps, `+faststart` for X.
-4. Captions are placed on the moments it found, in the order the product works.
-5. `demo/captions.srt` is written alongside. It is regenerated on every run, so
-   change the wording in the `BEATS` table at the top of `scripts/cut_demo.py`,
-   not in the .srt.
+1. **Trims the OBS UI.** `silencedetect` finds the first and last *sound* in each
+   take and cuts 0.15 s before and 0.45 s after it. No fixed offsets, so a reshoot
+   needs no new numbers.
+2. **Labels each take.** A numbered badge top-left (`1 VERBATIM`), plus one line and
+   one note for the first 7.5 s, e.g. *"Exactly your words — only capital and full
+   stop added."*
+3. **Frames it.** Title card (3 s), two intro slides, a divider, the three takes,
+   three outro slides, end card (5 s). Outro covers the three tools, the API/import/
+   skill surfaces, and that everything stays on the machine.
+4. **Encodes** 1920×1080, 30 fps, AAC, `+faststart`, speech normalised to −16 LUFS
+   with a generated drone 12 dB under it on the text cards only.
 
-It prints the plan it chose before encoding:
+It prints the trims it chose before encoding:
 
 ```
-recording: 82.4s   active moments: 5   kept: 5 (63.4s)
-   1.   7.19 →  18.58  (11.39s)
-   2.  21.08 →  38.23  (17.15s)
-   ...
-{"duration_s": 70.7, "kept_moments": 5, "under_90s": true}
+verbatim   trimmed to  19.0s  ( 4.05 -> 23.09)
+literal    trimmed to  10.2s  ( 3.34 -> 13.56)
+courteous  trimmed to  14.0s  ( 3.60 -> 17.59)
 ```
 
 ## Rules that keep the demo honest
 
-- **The voice in the video is the app's.** Narration is optional and mixed
-  *under* your audio; never a substitute for it.
+- **The voice in the video is the app's**, not a narrator's. The music bed is
+  synthesised by ffmpeg, so there is nothing to license.
 - **No mockups.** If a frame shows the pane, it is the pane.
-- **The failure stays in.** A demo where the product is perfect is a demo nobody
-  believes; the "it missed, here is what it says" moment is the part a speech
-  therapist recognizes.
-- **Say the limit out loud**, in the post or the end card: not a medical device,
-  no speech therapy claim.
+- **Keep one imperfection.** A take where the recogniser misses something and you
+  fix it says more than a perfect run.
+- **Say the limit out loud**, in the post or the end card: not a medical device, no
+  speech-therapy claim.
 
-## If the recording is unusable
+## Two traps worth knowing (both cost a render)
 
-`scripts/cut_demo.py --budget 120` keeps more of the take. If the audio is dead
-(the mic was muted), the file has no moments to find and the cutter will keep the
-whole clip — check the "active moments" line; `1` means it heard nothing.
+- **`drawtext` eats text containing `%`.** A stray `%` starts an expansion and the
+  whole line is dropped with only a *"Stray % near …"* warning in the log — a
+  subtitle can vanish without the render failing. Strings are escaped, and the copy
+  says "3 percent" rather than "3%".
+- **A centred `drawtext` wider than the frame is clipped at both ends**, silently
+  losing the first and last words. Card text is sized to fit the frame now.
+
+## If a take is unusable
+
+Re-record only that one file with the same name and run the command again — the
+other takes are untouched. If the audio is dead (muted microphone), the clip has no
+sound to find and the cutter keeps it whole; check the "trimmed to" line, it will
+show nearly the full length.

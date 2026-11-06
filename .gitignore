@@ -32,3 +32,7 @@ clearvoice_hermes_hackathon_build_brief.md
 # Demo build artifacts (regenerate with scripts/build_demo.sh)
 demo/*.wav
 demo/*.mp4
+
+# Keep the shipped demo video and its poster in the repo
+!demo/clearvoice-demo.mp4
+!demo/poster.png
