@@ -16,10 +16,12 @@ machine says your sentence, in one of seventeen languages.
 No account. No upload. No audio written to disk. No language model deciding what
 you meant.
 
-[![Watch the 80-second demo](demo/poster.png)](demo/clearvoice-demo.mp4)
+![ClearVoice: push to talk, your words on screen, then spoken](demo/preview.gif)
 
-*`demo/clearvoice-demo.mp4` — three takes, one per rewrite style, cut from a single
-recording session. Rebuild it with `python3 scripts/montage_demo.py`.*
+**[Watch the 80-second demo](demo/clearvoice-demo.mp4)** — three takes, one per
+rewrite style, cut from a single recording session. A lighter copy is at
+[demo/clearvoice-demo-720p.mp4](demo/clearvoice-demo-720p.mp4) if your browser
+prefers it; rebuild either with `python3 scripts/montage_demo.py`.
 
 > ClearVoice may help people be understood more clearly. It is not a medical
 > device, it does not diagnose or treat anything, and it is not a substitute for
