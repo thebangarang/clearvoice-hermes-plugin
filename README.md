@@ -1,4 +1,4 @@
-# ClearVoice
+# ClearVoice Hermes Plugin
 
 **A local, private push-to-talk speech bridge for people whose words are hard to
 understand — and for anyone who wants their own agent to hear them.**
