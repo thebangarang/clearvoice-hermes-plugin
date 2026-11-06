@@ -178,24 +178,47 @@ def card(out: Path, title: str, subtitle: str, footnote: str) -> None:
          "-vf", draw, str(out)])
 
 
-def slide(text: tuple[str, str, str, float], work: Path, name: str) -> Path:
+def slide(text: tuple[str, str, str, float], work: Path, name: str, music: bool = True) -> Path:
     """A text card: title, line, footnote, duration."""
     title, line, footnote, seconds = text
     image = work / f"{name}.png"
     card(image, title, line, footnote)
     clip = work / f"{name}.mp4"
-    still(image, seconds, clip)
+    still(image, seconds, clip, pad(seconds, work / f"{name}.wav") if music else None)
     return clip
 
 
-def still(path: Path, seconds: float, out: Path) -> None:
+def pad(seconds: float, out: Path) -> Path:
+    """A quiet generated drone, so the text slides are not dead silent.
+
+    Synthesised with ffmpeg (four sines, low-passed, a touch of echo and a slow
+    tremolo) rather than downloaded: nothing to license, nothing to credit, and it
+    fits the claim that everything in this demo was made on the machine.
+    """
+    fade_out = max(0.5, seconds - 1.8)
+    run(["ffmpeg", "-y", "-loglevel", "error", "-f", "lavfi",
+         "-i", f"aevalsrc='0.10*sin(2*PI*110*t)+0.07*sin(2*PI*164.81*t)"
+               f"+0.05*sin(2*PI*220*t)+0.03*sin(2*PI*277.18*t)':s=48000:d={seconds:.2f}",
+         "-af", f"lowpass=f=900,aecho=0.7:0.6:120|240:0.25|0.15,tremolo=f=0.12:d=0.18,"
+                f"afade=t=in:st=0:d=1.6,afade=t=out:st={fade_out:.2f}:d=1.8,volume=1.15",
+         str(out)])
+    return out
+
+
+def still(path: Path, seconds: float, out: Path, music: Path | None = None) -> None:
+    if music is not None:
+        audio_input = ["-i", str(music)]
+    else:
+        audio_input = ["-f", "lavfi", "-t", f"{seconds:.2f}",
+                       "-i", "anullsrc=channel_layout=stereo:sample_rate=48000"]
     run(["ffmpeg", "-y", "-loglevel", "error", "-loop", "1", "-t", f"{seconds:.2f}",
-         "-i", str(path), "-f", "lavfi", "-t", f"{seconds:.2f}",
-         "-i", "anullsrc=channel_layout=stereo:sample_rate=48000",
+         "-i", str(path), *audio_input,
          "-vf", "scale=1920:1080,setsar=1,fps=30,format=yuv420p",
          "-c:v", "libx264", "-preset", "veryfast", "-crf", "20",
          "-c:a", "aac", "-b:a", "160k", "-ar", "48000", "-ac", "2",
          "-shortest", str(out)])
+    if not out.is_file() or out.stat().st_size == 0:
+        raise SystemExit(f"could not render {out.name}")
 
 
 def segment(source: Path, begin: float, end: float, style: dict, out: Path) -> None:
@@ -219,7 +242,7 @@ def segment(source: Path, begin: float, end: float, style: dict, out: Path) -> N
     ])
     result = run(["ffmpeg", "-y", "-loglevel", "error",
                   "-ss", f"{begin:.3f}", "-to", f"{end:.3f}", "-i", str(source),
-                  "-vf", chain, "-af", "aresample=48000:async=1",
+                  "-vf", chain, "-af", "loudnorm=I=-16:TP=-1.5:LRA=11,aresample=48000:async=1",
                   "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p",
                   "-c:a", "aac", "-b:a", "160k", "-ar", "48000", "-ac", "2", str(out)])
     if result.returncode != 0 or not out.is_file():
@@ -231,10 +254,12 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--dir", default=str(Path.home() / "Videos"))
     parser.add_argument("--order", default="verbatim,literal,courteous")
+    parser.add_argument("--no-music", action="store_true", help="silent text cards")
     parser.add_argument("--out", default=str(DEMO / "clearvoice-demo.mp4"))
     args = parser.parse_args()
 
     source_dir = Path(args.dir).expanduser()
+    music = not args.no_music
     order = [name.strip() for name in args.order.split(",") if name.strip() in STYLES]
     if not order:
         raise SystemExit(f"No known styles. Expected a subset of {sorted(STYLES)}.")
@@ -252,13 +277,14 @@ def main() -> int:
              "One recording, three ways to say it.",
              "All of it on this machine · no account · nothing saved")
         title_clip = work / "00-title.mp4"
-        still(DEMO / "title.png", TITLE_SECONDS, title_clip)
+        still(DEMO / "title.png", TITLE_SECONDS, title_clip,
+              pad(TITLE_SECONDS, work / "00-title.wav") if music else None)
         parts.append(title_clip)
 
         for index, intro in enumerate(INTRO_SLIDES, start=1):
-            parts.append(slide(intro, work, f"01-intro-{index}"))
+            parts.append(slide(intro, work, f"01-intro-{index}", music))
 
-        parts.append(slide(DIVIDER, work, "02-divider"))
+        parts.append(slide(DIVIDER, work, "02-divider", music))
 
         for index, name in enumerate(order, start=1):
             spec = STYLES[name]
@@ -278,13 +304,14 @@ def main() -> int:
             print(f"{name:10s} trimmed to {end - begin:5.1f}s  ({begin:5.2f} -> {end:5.2f})")
 
         for index, outro in enumerate(OUTRO_SLIDES, start=1):
-            parts.append(slide(outro, work, f"50-outro-{index}"))
+            parts.append(slide(outro, work, f"50-outro-{index}", music))
 
         card(DEMO / "endcard.png", "Nothing leaves the machine.",
              "No background listening. No saved audio. No account.",
              "github.com/thebangarang/clearvoice-hermes-plugin")
         end_clip = work / "99-end.mp4"
-        still(DEMO / "endcard.png", END_SECONDS, end_clip)
+        still(DEMO / "endcard.png", END_SECONDS, end_clip,
+              pad(END_SECONDS, work / "99-end.wav") if music else None)
         parts.append(end_clip)
 
         listing = work / "concat.txt"
@@ -295,7 +322,6 @@ def main() -> int:
         result = run(["ffmpeg", "-y", "-loglevel", "error", "-f", "concat", "-safe", "0",
                       "-i", str(listing), "-c:v", "libx264", "-preset", "medium", "-crf", "20",
                       "-pix_fmt", "yuv420p", "-r", "30",
-                      "-af", "loudnorm=I=-16:TP=-1.5:LRA=11",
                       "-c:a", "aac", "-b:a", "160k",
                       "-movflags", "+faststart", str(final)])
         if result.returncode != 0:
