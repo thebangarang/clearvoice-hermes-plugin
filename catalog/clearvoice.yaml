@@ -1,33 +1,26 @@
 name: clearvoice
 repo: https://github.com/thebangarang/clearvoice-hermes-plugin
 # Full 40-character commit SHA of the reviewed tree.
-sha: db96a6434ff3011a06fa849e4c4932b127508bb6
-description: >-
-  Privacy-first push-to-talk speech-clarity bridge for people whose speech is hard to understand.
-  Hold a button, speak naturally, and ClearVoice shows one clear sentence in large text before
-  anything is spoken; press "Speak it" and an on-device Phonon 31m voice (Apache-2.0, via the
-  official ptts runtime) says it aloud. Speech recognition runs locally on faster-whisper with a
-  small English model. The microphone is opened only while the button is held and every track is
-  stopped on release. Audio, transcripts and generated speech stay in memory for the session and
-  are never written to disk; the only file the plugin writes is its own phrases.json, and only
-  when the user presses "Save phrase". No telemetry, no account, no profile, no behavioural memory.
-  Disclosure — network: none by default; a one-time model download from huggingface.co on first use
-  (no audio, no text), and the Gradium REST API only when the user turns on "Allow cloud speech",
-  selects the Gradium backend, and supplies their own key (triple-gated, no automatic fallback).
-  Shell: one ffmpeg call with a constant argv, audio over stdin/stdout, no shell and no user text in
-  the command. Background processes: none. Credentials: never written by the plugin; the optional
-  Gradium key is read through agent.secret_scope. Filesystem: reads and writes only its own data
-  directory. Capabilities: none requested — three tools (clearvoice_transcribe, clearvoice_speak, clearvoice_say_back), one CLI command and one slash command
-  (/clearvoice); the agent cannot make it speak text the user has not seen (two independent
-  approval gates). Desktop half uses only @hermes/plugin-sdk: a pane, a route, a sidebar row, a
-  palette entry and a status-bar chip.
+sha: 874657a61250ca94df01b36cc1b800c865022fe4
+description: Local push-to-talk speech bridge — your words on screen and spoken clearly in 17 languages, with no account, no cloud and no audio on disk.
 maintainer: thebangarang
 tier: community
 category: voice
+requires_hermes: ">=0.22.0"
+docs_url: https://github.com/thebangarang/clearvoice-hermes-plugin/blob/874657a61250ca94df01b36cc1b800c865022fe4/README.md
 version: "0.7.1"
-docs_url: https://github.com/thebangarang/clearvoice-hermes-plugin/blob/main/README.md
+title: ClearVoice Hermes Plugin
+image: https://raw.githubusercontent.com/thebangarang/clearvoice-hermes-plugin/874657a61250ca94df01b36cc1b800c865022fe4/docs/banner.png
+screenshots:
+  - https://raw.githubusercontent.com/thebangarang/clearvoice-hermes-plugin/874657a61250ca94df01b36cc1b800c865022fe4/docs/shot-verbatim.png
+  - https://raw.githubusercontent.com/thebangarang/clearvoice-hermes-plugin/874657a61250ca94df01b36cc1b800c865022fe4/docs/shot-courteous.png
+  - https://raw.githubusercontent.com/thebangarang/clearvoice-hermes-plugin/874657a61250ca94df01b36cc1b800c865022fe4/demo/poster.png
+readme: true
 platforms: [linux, macos, windows]
-title: ClearVoice
+known_issues:
+  - "English is the reference language: 7 of the 17 languages rebuild a sentence with a checked grammar pack (en, fr, de, es, it, pt, nl). The other 10 polish punctuation, capitalisation and politeness but never re-order words, and the pane says so."
+  - "Japanese and Thai need an extra phonemiser (clearvoice[ja] / clearvoice[th]); the pane prints the install command when one is missing."
+  - "No speaker adaptation: a general Whisper on an atypical voice is weaker than a model trained on that speaker."
 capabilities:
   provides_tools:
     - clearvoice_transcribe
@@ -36,4 +29,3 @@ capabilities:
   provides_hooks: []
   provides_middleware: []
   requires_env: []
-requires_hermes: ">=0.22.0"

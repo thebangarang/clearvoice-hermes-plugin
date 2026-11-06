@@ -1,44 +1,66 @@
-# Catalog PR — `plugin-catalog/clearvoice.yaml`
+# Catalog entry: `clearvoice`
 
-> Draft. Open this PR against `NousResearch/hermes-agent` **after** the plugin
-> repository is public and the commit SHA in the entry is a real 40-character
-> commit. Title:
->
-> `Add clearvoice — privacy-first push-to-talk speech-clarity plugin`
+**Suggested PR title:** `catalog: add clearvoice (local push-to-talk speech bridge)`
+
+**Pinned tree:** `874657a61250ca94df01b36cc1b800c865022fe4` · version 0.7.1
+
+---
 
 ## What it is
 
-ClearVoice is a push-to-talk speech-clarity bridge for people whose speech is
-hard for others to understand (aphasia, Parkinson's, cerebral palsy, ALS,
-stuttering, temporary voice loss). The user holds a button and speaks naturally;
-the plugin transcribes the clip, proposes one clear sentence, **shows it in large
-text before speaking anything**, and then voices it with Gradium's on-device
-Phonon 31m model.
+ClearVoice is a push-to-talk speech bridge for people whose speech is hard for
+others to understand (aphasia, Parkinson's, cerebral palsy, ALS, stuttering, a
+tracheostomy, post-surgery voice loss) — and for anyone who wants their own agent
+to hear them without shipping their voice to a vendor.
 
-It is deliberately narrow: it listens only while the button is held, it never
-sends messages, and it keeps nothing.
+You hold one button. Your words appear large and editable in the pane. Nothing is
+spoken until you press **Speak it**, and then a voice on your own machine says the
+sentence, in one of seventeen languages. No account, no cloud, no audio on disk,
+and no language model anywhere in the pipeline.
 
 ## Hermes surfaces used
 
-- `ctx.register_tool` — three tools: `clearvoice_transcribe`, `clearvoice_speak`, `clearvoice_say_back`.
-- `ctx.register_command` — `/clearvoice`.
-- Desktop plugin SDK — `panes`, `routes`, `sidebar.nav`, `palette`,
-  `statusBar.right`; `ctx.rest` into the plugin's own `/api/plugins/clearvoice`
-  namespace.
-- Nothing else. No hooks, no middleware, no provider registrations, no core
-  access, no `capabilities:`.
-
-## Disclosure (rule 13)
-
-| Item | Detail |
+| Surface | Detail |
 |---|---|
-| **Network** | None by default. One-time model download from `huggingface.co` on first use (a weights request — no audio, no text). The Gradium REST API (`api.gradium.ai`) is reachable only when three independent conditions hold: *Allow cloud speech* is on, the backend selector is Gradium, and the user's own key is present. No automatic local→cloud fallback. |
-| **Shell** | A single `ffmpeg` invocation with a constant argument vector, audio piped stdin→stdout. No shell, no interpolation, no filenames. |
-| **Background processes** | None. No daemon, no timer, no queue worker, no cron. |
-| **Stored credentials** | None written. The optional Gradium key is read with `agent.secret_scope.get_secret("CLEARVOICE_GRADIUM_API_KEY")`; it never appears in logs, errors, or the UI. |
-| **Filesystem** | Reads and writes exactly one file: `phrases.json` in the plugin's own data directory, and only on an explicit **Save phrase** action. Audio is never written — decoding and synthesis are in-memory, and a CPython audit-hook test asserts it. |
-| **Retention** | Session-only and in memory. No telemetry, no account, no profile, history or behavioural memory. |
-| **Microphone** | Opened inside the press handler only; tracks stopped on release, cancel, error and unmount. |
+| Tools | `clearvoice_transcribe`, `clearvoice_speak`, `clearvoice_say_back` |
+| Slash command | `/clearvoice` (opens the pane, or proposes a sentence from text) |
+| CLI command | `hermes clearvoice say \| hear \| say-back`, with `--json` for scripts |
+| Desktop | pane, `routes`, `sidebar.nav`, `palette`, `statusBar.right` |
+| Backend | `APIRouter` mounted at `/api/plugins/clearvoice/` (binds no port) |
+| Skill | bundled `skills/clearvoice/SKILL.md`, teaching when to use each tool |
+
+## Capabilities declared
+
+`provides_tools`: the three tools above. `provides_hooks`: none.
+`provides_middleware`: none. `requires_env`: none — the optional Gradium key is read
+through `agent.secret_scope`, never required. No `tools.override`, no core override,
+no desktop SDK escape: `hermes plugins validate` reports `security scan — safe`,
+`no core override`, `desktop surface — stays inside the plugin SDK surface`.
+
+## Rule 13 disclosure
+
+- **Network.** Nothing while you use it. Two opt-in paths only: a one-time model
+  download from `huggingface.co` on first use (no audio, no text), and the Gradium
+  REST API when *Allow cloud speech* is on **and** the Gradium backend is selected
+  **and** the user's own key is present. Any one missing → a plain refusal, never a
+  silent upload. There is **no** language-model path: an earlier version could send
+  a transcript to a model to "make it clearer"; it paraphrased and invented, so the
+  code was deleted rather than disabled.
+- **Shell.** One `ffmpeg` invocation with a constant argument vector; audio over
+  stdin/stdout. No shell, no filename, no user string in the command line.
+- **Background processes.** None — no thread outliving a request, no timer, no
+  daemon, no cron.
+- **Stored credentials.** None written. The optional Gradium key is read via
+  `agent.secret_scope.get_secret("CLEARVOICE_GRADIUM_API_KEY")` and is never logged,
+  echoed or displayed.
+- **Filesystem.** Writes only inside its own plugin data directory: `phrases.json`
+  (explicit **Save phrase**) and `dictionary.json` (words the user adds, plus
+  corrections only while learning is switched on).
+- **Retention.** Audio, transcripts and generated speech are session-only and in
+  memory. Audio is never written anywhere, so there is nothing to retain, leak or
+  upload. No telemetry, no account, no profile, no history.
+- **Microphone.** Opened inside the press handler only; every track stopped on
+  release, cancel, error and unmount.
 
 ## Dependencies
 
@@ -46,33 +68,58 @@ sends messages, and it keeps nothing.
 ptts>=0.6.0,<0.7
 faster-whisper>=1.2.1,<1.3
 numpy>=1.26,<3
+piper-tts>=1.8,<2
 ```
 
 All upper-bounded. `ptts` is Gradium's own runtime for the Apache-2.0 Phonon 31m
-weights; the CC BY-NC 40m checkpoints are not used or referenced.
+English weights; `piper-tts` (MIT runtime) voices the other sixteen languages. The
+CC BY-NC Phonon 40m checkpoints are not used, downloaded or referenced.
 
-## Verification
+## Verification at the pinned commit
 
-- `hermes plugins validate . --install-deps` → **Validation passed** (all checks
-  green, including `security scan`, `no core override`, `desktop surface`).
-- `hermes plugins doctor .` → `3 tool(s), 0 hook(s)`.
-- `pytest` → 38 passed, including the no-disk-write audit-hook test and the cloud
-  gating tests.
-- `python scripts/smoke_test.py` → real Phonon synth → real faster-whisper
-  transcript → reframe → real Phonon synth, nothing written to disk.
-- `python scripts/api_selftest.py` → every REST route exercised with real
-  WebM/Opus audio through an in-process FastAPI `TestClient`.
+```
+hermes plugins validate . --install-deps
+  ✓ manifest · requires_hermes · config schema · requires_env · loadable
+  ✓ python dependencies (4, bounded)
+  ✓ capability probe · declared tools / hooks / middleware match registrations
+  ✓ no built-in tool collisions · security scan — safe
+  ✓ no core override · desktop surface — stays inside the plugin SDK surface
+  Validation passed.
+
+hermes plugins doctor .
+  registrations: 3 tool(s), 0 hook(s)
+
+python -m pytest -q
+  160 passed
+```
+
+Behaviour is verified by tests rather than claims: `tests/test_privacy.py` runs the
+real pipeline under a CPython audit hook and asserts **zero** write-mode `open()`
+calls; the cloud tests fail if the HTTP layer is even *called* while cloud is off;
+each approval gate (`confirm_required` on the tool, `approved` on the route) has a
+test that the refusal happens before any synthesis.
 
 ## Screenshots
 
-The Desktop pane (one screenshot, plus the privacy badge close-up) goes here
-after the recording. Both are required by the README-copy rule for
-`desktop/` plugins.
+Banner `docs/banner.png` (1200×600); pane screenshots `docs/shot-verbatim.png` and
+`docs/shot-courteous.png`; 7-second loop `demo/preview.gif`; 80-second demo
+`demo/clearvoice-demo.mp4`. All pinned to the entry's commit.
+
+## Honest limitations (also in the README, the pane and `known_issues`)
+
+- **Recognition is not adapted to the speaker.** Voiceitt (50–200 recorded phrases)
+  and Google's Project Relate (500 phrases, per-user model) recognise atypical
+  speech better than a general Whisper. The dictionary here is a cheap local
+  approximation of that, and the README says so plainly.
+- **7 of 17 languages rebuild a sentence** — en, fr, de, es, it, pt, nl, each with a
+  checked grammar pack. The other ten are polished: punctuation, capitalisation, the
+  language's own politeness word, and a confirmation question in that language, with
+  word order untouched. The pane states which happened.
+- **CPU only** in this version; ~2.8 s from release to sentence.
 
 ## Note on scope
 
-The plugin is CPU-only in 0.7.0, English is the reference language, and ten of the
-seventeen languages are polish-only; all of it is stated in the README's
-limitations section rather than left for a reviewer to discover. The Gradium cloud
-paths are implemented against the published REST contract but are not exercised
-in CI (no key exists there) — they fail closed, early, and with a plain message.
+The plugin is deliberately narrow: it listens only while a button is held, it speaks
+only what the user has approved, it stores nothing, and it asks no capabilities. That
+is the design argument, not a phase — the audience is people for whom being
+understood is not a convenience.
