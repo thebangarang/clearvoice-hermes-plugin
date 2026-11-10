@@ -2,7 +2,7 @@
 
 **Suggested PR title:** `catalog: add clearvoice (local push-to-talk speech bridge)`
 
-**Pinned tree:** `874657a61250ca94df01b36cc1b800c865022fe4` · version 0.7.1
+**Pinned tree:** `d4bc366ec72d4f2af1a1772b3a94f48bd0e0b156` · version 0.7.2
 
 ---
 
@@ -96,8 +96,11 @@ python -m pytest -q
 Behaviour is verified by tests rather than claims: `tests/test_privacy.py` runs the
 real pipeline under a CPython audit hook and asserts **zero** write-mode `open()`
 calls; the cloud tests fail if the HTTP layer is even *called* while cloud is off;
-each approval gate (`confirm_required` on the tool, `approved` on the route) has a
-test that the refusal happens before any synthesis.
+the speak gate is tested as a capability rather than a flag: both tools are
+monkeypatched with a synthesiser that raises, then called with any arguments, and
+they only ever queue; `GET /pending` is asserted to carry text and a token and no
+audio; a wrong token is refused while the request survives, the right token speaks
+once and is refused the second time.
 
 ## Screenshots
 
