@@ -214,13 +214,35 @@ def test_engine_modules_do_not_import_network_or_shell_for_audio_io():
     assert "NamedTemporaryFile" not in source
 
 
-def test_runtime_outbox_is_single_slot_and_expires(monkeypatch):
-    box = runtime.AudioOutbox()
-    box.put(b"RIFF0000", "hello", "phonon")
-    assert box.peek().text == "hello"
-    first = box.take()
-    assert first is not None and box.take() is None
+def test_the_pending_queue_carries_text_never_audio(monkeypatch):
+    """The blocker from review: the queue must not be able to hold sound."""
+    queue = runtime.SpeechQueue()
+    item = queue.request("The pharmacy closes at six.", kind="speak")
 
-    box.put(b"RIFF0000", "stale", "phonon")
+    assert item.text == "The pharmacy closes at six."
+    assert not hasattr(item, "wav"), "a queued request must not carry audio"
+    assert queue.peek() is not None
+
     monkeypatch.setattr(runtime, "PENDING_TTL_SECONDS", -1)
-    assert box.take() is None
+    assert queue.peek() is None, "an expired request is dropped, not redeemed"
+    assert queue.consume(item.token) is None
+
+
+def test_a_token_is_single_use_and_bound_to_its_text():
+    queue = runtime.SpeechQueue()
+    item = queue.request("Call the doctor.", kind="speak")
+
+    assert queue.consume("") is None
+    assert queue.consume("wrong-token") is None
+    assert queue.peek() is not None
+    redeemed = queue.consume(item.token)
+    assert redeemed is not None and redeemed.text == "Call the doctor."
+    assert queue.consume(item.token) is None
+
+
+def test_a_new_request_replaces_the_previous_one():
+    queue = runtime.SpeechQueue()
+    first = queue.request("First.")
+    queue.request("Second.")
+    assert queue.consume(first.token) is None, "the replaced request cannot be redeemed"
+    assert queue.peek().text == "Second."

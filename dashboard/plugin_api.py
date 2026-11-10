@@ -9,7 +9,8 @@ Route map
 ``POST /transcribe``        clip (base64) -> transcript + proposed sentence
 ``POST /clarify``           transcript -> proposed sentence
 ``POST /speak``             sentence -> audio (base64), in memory
-``GET  /pending``           audio the agent asked the pane to speak, once
+``GET  /pending``           a sentence the agent asked to speak: text + token, no audio
+``DELETE /pending``         discard that sentence without speaking it
 ``POST /session/clear``     drop the session's captions and pending audio
 ``GET  /phrases``           the user's saved phrases
 ``POST /phrases``           explicitly save one phrase
@@ -27,6 +28,7 @@ import base64
 import binascii
 import logging
 import sys
+import time
 from pathlib import Path
 from typing import Any
 
@@ -202,12 +204,29 @@ async def clarify(payload: dict[str, Any]) -> dict[str, Any]:
 async def speak(payload: dict[str, Any]) -> dict[str, Any]:
     """Synthesize one approved sentence. Returns audio as base64, never a file."""
     body = payload or {}
-    message = " ".join(str(body.get("message") or "").split())
-    if not message:
-        raise HTTPException(status_code=400, detail="There is nothing to speak yet.")
     if not body.get("approved", False):
         # The pane must set this after the user presses "Speak it".
         raise HTTPException(status_code=409, detail="Show the sentence and let the user approve it first.")
+
+    token = str(body.get("token") or "").strip()
+    if token:
+        # A sentence a tool asked to speak. The token is the proof that the pane
+        # showed it and a person pressed the button, so the text comes from the
+        # queue and any "message" in the body is ignored.
+        queued = runtime.outbox.consume(token)
+        if queued is None:
+            raise HTTPException(
+                status_code=409,
+                detail="That request is no longer pending. Press Speak it again.",
+            )
+        message = queued.text
+    else:
+        # A sentence the user produced in the pane themselves (their own words,
+        # possibly edited). Nothing was queued, so there is nothing to redeem.
+        message = " ".join(str(body.get("message") or "").split())
+
+    if not message:
+        raise HTTPException(status_code=400, detail="There is nothing to speak yet.")
 
     settings = _settings(body)
     backend = str(body.get("backend") or settings.tts_backend)
@@ -246,17 +265,30 @@ async def speak(payload: dict[str, Any]) -> dict[str, Any]:
 
 @router.get("/pending")
 async def pending() -> dict[str, Any]:
-    """Audio the agent queued through ``clearvoice_speak``. Consumed once."""
-    item = runtime.outbox.take()
+    """A sentence a tool asked to speak — text only, plus a single-use token.
+
+    Deliberately carries no audio: the pane must render this as a proposal and
+    wait for the user. Polling changes nothing and plays nothing.
+    """
+    item = runtime.outbox.peek()
     if item is None:
         return {"pending": False}
     return {
         "pending": True,
-        "audio_b64": base64.b64encode(item.wav).decode("ascii"),
-        "mime": "audio/wav",
+        "id": item.id,
+        "kind": item.kind,
         "text": item.text,
-        "backend": item.backend,
+        "transcript": item.transcript,
+        "token": item.token,
+        "seconds_left": max(0, int(runtime.PENDING_TTL_SECONDS - (time.time() - item.created_at))),
     }
+
+
+@router.delete("/pending")
+async def discard_pending() -> dict[str, Any]:
+    """Throw away a queued sentence without speaking it."""
+    runtime.outbox.clear()
+    return {"pending": False, "discarded": True}
 
 
 @router.post("/session/clear")

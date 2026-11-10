@@ -11,9 +11,9 @@ import json
 
 import pytest
 
-from clearvoice_engine import runtime, tts
+from clearvoice_engine import runtime, stt, tts
 
-SCHEMA_KEYS = {"text", "voice_profile", "backend", "confirm_required", "deliver"}
+SCHEMA_KEYS = {"text", "voice_profile", "backend", "deliver"}
 
 
 def _register(plugin, ctx):
@@ -36,44 +36,81 @@ def test_register_exposes_three_tools_and_one_command(plugin, fake_ctx):
     assert say_back_schema["parameters"]["required"] == ["audio_path"]
 
 
-def test_tool_refuses_to_speak_without_confirmation(plugin, fake_ctx):
+def test_the_tool_cannot_speak_it_only_queues(plugin, fake_ctx, monkeypatch):
+    """The blocking review item: a model cannot make the pane talk."""
     ctx = _register(plugin, fake_ctx)
     _schema, handler = ctx.tools["clearvoice_speak"]
 
-    payload = json.loads(handler({"text": "Could you sit down, please?"}))
+    def must_not_synthesise(*_args, **_kwargs):
+        raise AssertionError("the tool synthesised audio; only the pane may do that")
+
+    monkeypatch.setattr(tts, "synthesize", must_not_synthesise)
+
+    # Even a caller that passes the old override, and one that passes nonsense,
+    # gets the same answer: queued, not spoken.
+    for args in ({"text": "Please sit down."}, {"text": "Please sit down.", "confirm_required": False}):
+        runtime.outbox.clear()
+        payload = json.loads(handler(args))
+        assert payload["queued"] is True
+        assert payload["spoken"] is False
+        assert payload["awaiting_user"] is True
+        assert payload["text"] == "Please sit down."
+        pending = runtime.outbox.peek()
+        assert pending is not None and pending.text == "Please sit down."
+        assert pending.token and len(pending.token) >= 16
+
+
+def test_a_queued_sentence_can_only_be_redeemed_with_its_token(plugin, fake_ctx):
+    ctx = _register(plugin, fake_ctx)
+    _schema, handler = ctx.tools["clearvoice_speak"]
+    runtime.outbox.clear()
+    handler({"text": "The pharmacy closes at six."})
+    pending = runtime.outbox.peek()
+
+    assert runtime.outbox.consume("not-the-token") is None
+    assert runtime.outbox.peek() is not None, "a wrong token must not consume the request"
+    redeemed = runtime.outbox.consume(pending.token)
+    assert redeemed is not None and redeemed.text == "The pharmacy closes at six."
+    assert runtime.outbox.consume(pending.token) is None, "a token is single-use"
+
+
+def test_say_back_queues_and_does_not_speak(plugin, fake_ctx, monkeypatch, tmp_path):
+    ctx = _register(plugin, fake_ctx)
+    _schema, handler = ctx.tools["clearvoice_say_back"]
+
+    clip = tmp_path / "note.webm"
+    clip.write_bytes(b"RIFFfake-audio")
+
+    class _Heard:
+        text = "i need appointment tuesday move"
+        language = "en"
+        model = "small"
+        duration_s = 2.0
+        corrections_applied = 0
+
+    monkeypatch.setattr("__init__._read_audio_file", lambda _p: b"RIFFfake-audio")
+    monkeypatch.setattr(stt, "transcribe", lambda *a, **k: _Heard())
+
+    def must_not_synthesise(*_args, **_kwargs):
+        raise AssertionError("say_back synthesised audio; only the pane may do that")
+
+    monkeypatch.setattr(tts, "synthesize", must_not_synthesise)
+
+    runtime.outbox.clear()
+    payload = json.loads(handler({"audio_path": str(clip)}))
+    assert payload["queued"] is True
     assert payload["spoken"] is False
-    assert payload["needs_confirmation"] is True
-    assert payload["text"] == "Could you sit down, please?"
-    assert "confirm_required=false" in payload["then"]
+    assert payload["transcript"] == "i need appointment tuesday move"
+    assert runtime.outbox.peek() is not None
 
 
-def test_tool_speaks_only_when_confirmation_is_passed_as_false(plugin, fake_ctx, monkeypatch):
+def test_file_delivery_is_the_only_tool_synthesis_and_is_off_by_default(plugin, fake_ctx):
     ctx = _register(plugin, fake_ctx)
     _schema, handler = ctx.tools["clearvoice_speak"]
 
-    class _Result:
-        wav = b"RIFFfake"
-        backend = "phonon"
-        voice = "default"
-        duration_s = 1.0
-
-    monkeypatch.setattr(tts, "synthesize", lambda *a, **k: _Result())
-
-    payload = json.loads(handler({"text": "Thank you.", "confirm_required": False}))
-    assert payload["spoken"] is True
-    assert payload["backend"] == "phonon"
-    assert payload["saved"] is False
-    assert runtime.outbox.peek() is not None, "the pane was never handed the audio"
-
-
-def test_tool_reports_cloud_refusal_as_a_plain_message(plugin, fake_ctx, monkeypatch):
-    fake_ctx.config = {"tts_backend": "gradium", "allow_cloud": False}
-    ctx = _register(plugin, fake_ctx)
-    _schema, handler = ctx.tools["clearvoice_speak"]
-
-    payload = json.loads(handler({"text": "Hello.", "confirm_required": False}))
+    payload = json.loads(handler({"text": "Hello.", "deliver": "file"}))
     assert payload["spoken"] is False
-    assert "Cloud speech is off" in payload["error"]
+    assert "Allow speech files" in payload["error"]
 
 
 def test_tool_never_raises_on_bad_input(plugin, fake_ctx):
@@ -86,7 +123,8 @@ def test_tool_never_raises_on_bad_input(plugin, fake_ctx):
         assert payload["error"]
 
 
-def test_tool_returns_error_when_the_voice_fails(plugin, fake_ctx, monkeypatch):
+def test_file_delivery_reports_a_voice_failure_in_plain_language(plugin, fake_ctx, monkeypatch):
+    fake_ctx.config = {"allow_speech_files": True}
     ctx = _register(plugin, fake_ctx)
     _schema, handler = ctx.tools["clearvoice_speak"]
 
@@ -94,53 +132,9 @@ def test_tool_returns_error_when_the_voice_fails(plugin, fake_ctx, monkeypatch):
         raise tts.SynthesisError("The on-device voice could not speak that sentence.")
 
     monkeypatch.setattr(tts, "synthesize", boom)
-    payload = json.loads(handler({"text": "Hello.", "confirm_required": False}))
+    payload = json.loads(handler({"text": "Hello.", "deliver": "file"}))
     assert payload["spoken"] is False
     assert "could not speak" in payload["error"]
-
-
-def test_slash_command_without_text_opens_the_pane(plugin, fake_ctx):
-    ctx = _register(plugin, fake_ctx)
-    message = ctx.commands["clearvoice"]("")
-    assert "Push to Talk" in message
-    assert "Confirm" in message or "pane" in message
-
-
-def test_slash_command_with_text_proposes_but_does_not_speak(plugin, fake_ctx):
-    ctx = _register(plugin, fake_ctx)
-    message = ctx.commands["clearvoice"]("I need... appointment... Tuesday... move.")
-    # Verbatim is the default: the slash command offers back what was heard.
-    assert "I need appointment Tuesday move." in message
-    assert "nothing is spoken" in message.lower()
-
-
-def test_slash_command_survives_odd_input(plugin, fake_ctx):
-    ctx = _register(plugin, fake_ctx)
-    assert ctx.commands["clearvoice"](None)
-
-
-def test_settings_are_read_through_the_plugin_context(plugin, fake_ctx):
-    fake_ctx.config = {"whisper_model": "base.en", "language": "fr"}
-    ctx = _register(plugin, fake_ctx)
-    settings = plugin._read_settings(ctx)
-    assert settings.whisper_model == "base.en"
-    assert settings.language == "fr"
-    assert settings.tts_backend == "auto"
-    # French: Piper voices it, and a `.en` recogniser is swapped for a
-    # multilingual one rather than silently mis-hearing.
-    assert settings.resolved_tts_engine == "piper"
-    assert settings.stt_model == "base"  # the configured ".en" variant is stripped
-
-
-def test_fallback_settings_are_local(plugin):
-    settings = plugin._fallback_settings()
-    assert settings.tts_backend == "auto"
-    assert settings.resolved_tts_engine == "phonon"
-    assert settings.allow_cloud is False
-
-
-# --- CLI surface -----------------------------------------------------------
-
 
 class _Args:
     def __init__(self, **kwargs):

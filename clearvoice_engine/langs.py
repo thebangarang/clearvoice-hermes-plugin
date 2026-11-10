@@ -138,13 +138,23 @@ def piper_voice(key: str) -> dict | None:
     return None
 
 
+#: Pinned revision of ``rhasspy/piper-voices``. A branch name would make the zip
+#: of files a user downloads change without this repository changing; a commit
+#: makes the download reproducible and reviewable.
+PIPER_REVISION = "cf910fb59f1d79ab3b625a63993a108751c6c25d"
+
+
 def piper_url(key: str) -> str:
     """Hugging Face URL of a voice's ONNX file, derived from its key.
 
     ``fr_FR-siwis-medium`` -> ``fr/fr_FR/siwis/medium/fr_FR-siwis-medium.onnx``
+    at the pinned revision.
     """
     region, _, rest = key.partition("-")
     quality = rest.rsplit("-", 1)[-1]
     name = rest[: -(len(quality) + 1)]
     family = region.split("_")[0]
-    return f"https://huggingface.co/rhasspy/piper-voices/resolve/main/{family}/{region}/{name}/{quality}/{key}.onnx"
+    return (
+        f"https://huggingface.co/rhasspy/piper-voices/resolve/{PIPER_REVISION}"
+        f"/{family}/{region}/{name}/{quality}/{key}.onnx"
+    )

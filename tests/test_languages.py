@@ -84,14 +84,19 @@ def test_voice_index_covers_all_offered_piper_languages():
 
 
 def test_voice_keys_map_to_hugging_face_paths():
+    # Pinned to a commit, never to "main": a review approves a tree, and the voice
+    # files must not be able to change under it.
+    assert len(langs.PIPER_REVISION) == 40
+    base = f"https://huggingface.co/rhasspy/piper-voices/resolve/{langs.PIPER_REVISION}"
     assert (
         langs.piper_url("fr_FR-siwis-medium")
-        == "https://huggingface.co/rhasspy/piper-voices/resolve/main/fr/fr_FR/siwis/medium/fr_FR-siwis-medium.onnx"
+        == f"{base}/fr/fr_FR/siwis/medium/fr_FR-siwis-medium.onnx"
     )
     assert (
         langs.piper_url("en_GB-alan-low")
-        == "https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_GB/alan/low/en_GB-alan-low.onnx"
+        == f"{base}/en/en_GB/alan/low/en_GB-alan-low.onnx"
     )
+    assert "/resolve/main/" not in langs.piper_url("fr_FR-siwis-medium")
 
 
 def test_status_exposes_the_language_list_and_engine_labels():

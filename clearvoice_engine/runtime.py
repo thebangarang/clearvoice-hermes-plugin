@@ -11,6 +11,7 @@ except the user's explicitly saved phrases (see ``privacy.SavedPhrases``).
 from __future__ import annotations
 
 import os
+import secrets
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -22,49 +23,74 @@ from .lexicon import Lexicon
 #: Session transcript/caption memory. In RAM, cleared on request.
 session = SessionStore()
 
-#: Pending spoken audio waiting to be collected by the Desktop pane.
+#: Pending speech request waiting for the user to approve it in the pane.
 PENDING_TTL_SECONDS = 120
 
 
 @dataclass
-class PendingAudio:
-    token: int
-    wav: bytes
+class PendingSpeech:
+    """A sentence a tool asked to speak — text only, never audio.
+
+    The distinguishing property of this object is what it does *not* carry: there
+    is no wav here. A model can put a sentence in this queue; only a click in the
+    pane can turn it into sound, by redeeming the single-use token.
+    """
+
+    id: int
     text: str
-    backend: str
+    kind: str            # "speak" | "say_back"
+    transcript: str
+    token: str
     created_at: float
 
 
-class AudioOutbox:
-    """Single slot: the newest utterance the agent asked the pane to speak."""
+class SpeechQueue:
+    """One queued sentence from a tool, redeemable once by the pane.
+
+    ``request`` is what a tool may do. ``consume`` requires the token that the
+    pane received with the text, so the audio a user hears is provably the
+    sentence they were shown.
+    """
 
     def __init__(self) -> None:
-        self._item: PendingAudio | None = None
+        self._item: PendingSpeech | None = None
         self._counter = 0
 
-    def put(self, wav: bytes, text: str, backend: str) -> PendingAudio:
+    def request(self, text: str, *, kind: str = "speak", transcript: str = "") -> PendingSpeech:
         self._counter += 1
-        self._item = PendingAudio(self._counter, wav, text, backend, time.time())
-        return self._item
-
-    def take(self) -> PendingAudio | None:
-        item, self._item = self._item, None
-        if item and time.time() - item.created_at > PENDING_TTL_SECONDS:
-            return None
+        item = PendingSpeech(
+            id=self._counter,
+            text=text,
+            kind=kind,
+            transcript=transcript,
+            token=secrets.token_urlsafe(24),
+            created_at=time.time(),
+        )
+        self._item = item
         return item
 
-    def peek(self) -> PendingAudio | None:
+    def peek(self) -> PendingSpeech | None:
         item = self._item
         if item and time.time() - item.created_at > PENDING_TTL_SECONDS:
             self._item = None
             return None
         return item
 
+    def consume(self, token: str) -> PendingSpeech | None:
+        """Redeem a token once. Wrong, missing or expired token → None."""
+        item = self.peek()
+        if item is None or not token:
+            return None
+        if not secrets.compare_digest(str(token), item.token):
+            return None
+        self._item = None
+        return item
+
     def clear(self) -> None:
         self._item = None
 
 
-outbox = AudioOutbox()
+outbox = SpeechQueue()
 
 _phrases: SavedPhrases | None = None
 _phrases_dir: Path | None = None

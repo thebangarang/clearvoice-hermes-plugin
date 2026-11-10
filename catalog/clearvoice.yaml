@@ -8,7 +8,7 @@ tier: community
 category: voice
 requires_hermes: ">=0.22.0"
 docs_url: https://github.com/thebangarang/clearvoice-hermes-plugin/blob/874657a61250ca94df01b36cc1b800c865022fe4/README.md
-version: "0.7.1"
+version: "0.7.2"
 title: ClearVoice Hermes Plugin
 image: https://raw.githubusercontent.com/thebangarang/clearvoice-hermes-plugin/874657a61250ca94df01b36cc1b800c865022fe4/docs/banner.png
 screenshots:

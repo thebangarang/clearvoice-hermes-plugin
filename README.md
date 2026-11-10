@@ -3,7 +3,7 @@
 **A local, private push-to-talk speech bridge for people whose words are hard to
 understand — and for anyone who wants their own agent to hear them.**
 
-![version](https://img.shields.io/badge/version-0.7.1-blue)
+![version](https://img.shields.io/badge/version-0.7.2-blue)
 ![tests](https://img.shields.io/badge/tests-160%20passing-brightgreen)
 ![licence](https://img.shields.io/badge/licence-MIT-green)
 ![offline](https://img.shields.io/badge/runs-offline-black)
@@ -280,6 +280,10 @@ Then, in Hermes Desktop: **Capabilities → Plugins → ClearVoice → enable**,
 **Rescan** if the sidebar row is missing. The Desktop half is a separate, deliberate
 switch; the pane does not appear until you flip it.
 
+Voice models are downloaded from a **pinned commit** of `rhasspy/piper-voices` and
+verified against the sha256 Hugging Face publishes for each file; a mismatch is
+discarded, never loaded.
+
 **Requirements:** Hermes Agent ≥ 0.22.0, Python 3.10+, `ffmpeg` on `PATH`, a working
 microphone, and ~600 MB of disk for the speech model plus one voice. First use
 downloads them; afterwards the network can stay unplugged.
@@ -311,28 +315,32 @@ python scripts/smoke_test.py                # real models, real audio, no microp
 | Tool | Input → output | Use it for |
 |---|---|---|
 | `clearvoice_transcribe` | audio path → transcript (+ optional sentence) | dictation, voice notes, meeting snippets, subtitles |
-| `clearvoice_speak` | text → speech in the pane, or one WAV (`deliver: "file"`) | an agent that speaks, voice-over |
-| `clearvoice_say_back` | audio → transcript → sentence → spoken | repeating an unclear recording clearly |
+| `clearvoice_speak` | text → **queued** for the user to speak (or one WAV with `deliver: "file"`) | an agent that asks for a line, voice-over |
+| `clearvoice_say_back` | audio → transcript → sentence → **queued** | repeating an unclear recording clearly |
 
-`clearvoice_speak` is deliberately two-step:
+Neither tool can speak. They queue a sentence, and the queue holds **text, never
+audio**:
 
 ```jsonc
-// confirm_required: true (default) — refuses, and returns the sentence
-{"spoken": false, "needs_confirmation": true,
+// what a model gets back — every time, with no parameter that changes it
+{"queued": true, "spoken": false, "awaiting_user": true,
  "text": "I need appointment Tuesday move.",
- "then": "call clearvoice_speak again with confirm_required=false once the user accepts it"}
-
-// confirm_required: false — speaks it, in memory, into the open pane
-{"spoken": true, "backend": "phonon", "voice": "default", "duration_s": 2.9,
- "delivered_to": "clearvoice pane (in memory)", "saved": false}
+ "instruction": "ClearVoice is showing this sentence in its pane. Nothing is spoken until the user presses Speak it there. Do not call this tool again to try to force playback."}
 ```
 
-A model cannot make this plugin say something the user has not seen: the pane sets
-`confirm_required: false` only after the user pressed **Speak it** on a sentence on
-screen. If the pane is closed the audio is discarded after 120 s and nothing lands
-on disk. `deliver: "file"` is the one path to disk, it writes exactly one WAV into
-the plugin's `speech/` folder, and it stays **off** until you enable *Allow speech
-files*.
+The pane polls `/pending`, which returns that text **and a single-use token** — no
+`audio_b64`, so polling cannot play anything. The sentence appears as a proposal;
+only the user's **Speak it** press redeems the token, and `/speak` refuses a wrong,
+missing, reused or expired one. Editing the sentence also throws the token away, so
+the audio that plays is provably the text on screen.
+
+`deliver: "file"` is the one path where a tool can trigger synthesis, and it speaks
+into no room: it writes exactly one WAV into the plugin's `speech/` folder, and it
+stays **off** until you enable *Allow speech files*.
+
+Earlier versions had a `confirm_required` boolean here. That was not a gate — the
+model supplied the value — so it was removed along with the autoplay it enabled.
+See [decisions.md](decisions.md) D-022.
 
 A bundled skill (`skills/clearvoice/SKILL.md`) teaches the agent when to reach for
 each tool and that the approval gate is not optional.
@@ -386,6 +394,9 @@ Stated plainly, because a user or a judge will find them anyway.
 - **Single utterance at a time.** No wake word, no continuous dictation, no
   conversation mode — those are the behaviours this plugin exists to avoid.
 - **No voice cloning.** 37 English and 108 Piper voices, chosen not trained.
+- **A queued sentence waits 120 seconds.** If you do not press Speak it in that
+  window the request expires and has to be asked for again — a deliberate limit, so
+  nothing old can be replayed later.
 - **Cloud speech is not exercised by the test suite.** The Gradium paths follow the
   documented REST contract and fail loudly and early, but without a key they are
   unverified until you run them once.

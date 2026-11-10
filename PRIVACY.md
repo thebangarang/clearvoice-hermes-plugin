@@ -103,7 +103,7 @@ invented, and the code was removed rather than hidden behind a flag.
 
 | What | How |
 |---|---|
-| The current session's captions and pending audio | **Clear session** in the pane (also **Cancel**) |
+| The current session's captions, and any sentence queued for speaking | **Clear session** in the pane (also **Cancel**). A queued sentence also expires after 120 s |
 | Everything, including settings | `hermes plugins remove clearvoice`, then delete `<hermes home>/plugin-data/clearvoice/` |
 | Saved phrases | *My phrases* → **×** on each, or delete `phrases.json` |
 | Your Gradium key | Remove `CLEARVOICE_GRADIUM_API_KEY` from `.env`, or `hermes config` → Plugins → ClearVoice |
@@ -126,7 +126,11 @@ your vocabulary or remember yesterday's sentences — and it is taken deliberate
 - Send a message to anyone, on any platform, autonomously.
 - Create an account, or require one.
 - Store your audio, transcripts, or generated speech after the session.
-- Speak an inferred sentence without showing it to you first.
+- Speak anything an agent queued until **you** press the button. A tool can only
+  place text in the pane's queue; the queue holds no audio, the pane is handed a
+  single-use token with that text, and only your click redeems it. A model cannot
+  autoplay, cannot replay an old request, and cannot re-word a sentence after you
+  approved it.
 
 ## 8. Third parties in the data path
 

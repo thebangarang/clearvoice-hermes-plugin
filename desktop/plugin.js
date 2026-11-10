@@ -804,6 +804,16 @@ function ClearVoice({ compact }) {
   const [voice, setVoice] = useState('')
   const [voices, setVoices] = useState([])
   const [rewriteStyle, setRewriteStyle] = useState('verbatim')
+  // A sentence a tool queued: shown, never played, until the user presses Speak it.
+  const [pendingSpeech, setPendingSpeech] = useState(null)
+  const pendingIdRef = useRef(null)
+
+  // Editing takes the sentence over: the queued text (and its token) no longer
+  // describes what is on screen, so the token must not be redeemed.
+  const editDraft = useCallback(value => {
+    setDraft(value)
+    setPendingSpeech(null)
+  }, [])
   const [phrasesFolder, setPhrasesFolder] = useState('')
   const [phrasesFolderCustom, setPhrasesFolderCustom] = useState(false)
   const [choosingFolder, setChoosingFolder] = useState(false)
@@ -911,12 +921,18 @@ function ClearVoice({ compact }) {
   }, [])
 
   const resetTurn = useCallback(() => {
+    pendingIdRef.current = null
     setTranscript('')
     setDraft('')
     setProposal(null)
+    setPendingSpeech(null)
     setEditing(false)
     setError('')
     setPhase('ready')
+    // Drop the queued sentence too, so its token cannot be redeemed later.
+    if (REST) {
+      REST('/pending', { method: 'DELETE' }).catch(() => {})
+    }
   }, [])
 
   const playAudio = useCallback((base64, onDone) => {
@@ -985,12 +1001,17 @@ function ClearVoice({ compact }) {
   )
 
   const startRecording = useCallback(async () => {
+    pendingIdRef.current = null
     setError('')
     setTranscript('')
     setDraft('')
     setProposal(null)
+    setPendingSpeech(null)
     setEditing(false)
     setPhase('listening')
+    if (REST) {
+      REST('/pending', { method: 'DELETE' }).catch(() => {})
+    }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true }
@@ -1049,10 +1070,11 @@ function ClearVoice({ compact }) {
     setPhase('speaking')
     setError('')
     try {
-      const data = await REST('/speak', {
-        method: 'POST',
-        body: { message, approved: true, language, voice }
-      })
+      const body = pendingSpeech && pendingSpeech.token
+        ? { token: pendingSpeech.token, approved: true, language, voice }
+        : { message, approved: true, language, voice }
+      const data = await REST('/speak', { method: 'POST', body })
+      setPendingSpeech(null)
       if (!mounted.current) return
       if (data && data.backend && data.backend !== 'phonon') {
         // Cloud use is never silent: say so in the badge line.
@@ -1065,7 +1087,7 @@ function ClearVoice({ compact }) {
       setError(restErrorText(err))
       setPhase('error')
     }
-  }, [draft, playAudio, refreshStatus, language, voice])
+  }, [draft, pendingSpeech, playAudio, refreshStatus, language, voice])
 
   const addTerm = useCallback(async () => {
     const term = newTerm.trim()
@@ -1185,12 +1207,31 @@ function ClearVoice({ compact }) {
       if (!REST) return
       try {
         const data = await REST('/pending', { method: 'GET' })
-        if (data && data.pending && mounted.current) {
-          setTranscript((data.text || '').trim())
-          setDraft((data.text || '').trim())
-          setProposal(null)
-          setPhase('speaking')
-          playAudio(data.audio_b64)
+        const alreadyShown = pendingIdRef.current !== null && pendingIdRef.current === (data && data.id)
+        if (!data || !data.pending) {
+          pendingIdRef.current = null
+        }
+        if (data && data.pending && mounted.current && !alreadyShown) {
+          pendingIdRef.current = data.id
+          // Text only. Nothing is synthesised or played here: the user has not
+          // pressed anything, so this is a proposal like any other.
+          const queuedText = (data.text || '').trim()
+          setPendingSpeech({
+            token: data.token,
+            id: data.id,
+            kind: data.kind || 'speak',
+            text: queuedText
+          })
+          setTranscript(((data.transcript || '') || queuedText).trim())
+          setDraft(queuedText)
+          setProposal({
+            message: queuedText,
+            needs_confirmation: true,
+            confirmation_question: 'ClearVoice is asking to speak this out loud. Nothing has been said yet.',
+            candidates: [queuedText],
+            reason: 'queued_by_tool'
+          })
+          setPhase('toSpeak')
         }
       } catch (err) {
         /* backend asleep */
@@ -1280,7 +1321,7 @@ function ClearVoice({ compact }) {
         proposal,
         editing,
         setEditing,
-        onDraft: setDraft
+        onDraft: editDraft
       }),
 
       proposal && proposal.needs_confirmation && proposal.confirmation_question
@@ -1309,7 +1350,7 @@ function ClearVoice({ compact }) {
                     {
                       type: 'button',
                       onClick: () => {
-                        setDraft(candidate)
+                        editDraft(candidate)
                         setProposal(null)
                       },
                       style: {
@@ -1435,7 +1476,7 @@ function ClearVoice({ compact }) {
         customFolder: phrasesFolderCustom,
         choosing: choosingFolder,
         onUse: phrase => {
-          setDraft(phrase.text)
+          editDraft(phrase.text)
           setTranscript('')
           setProposal(null)
           setPhase('toSpeak')

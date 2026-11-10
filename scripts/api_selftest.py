@@ -98,6 +98,36 @@ def main() -> int:
     assert saved.status_code == 200
     print("  saved:", client.get("/phrases").json()["phrases"][0]["text"])
 
+    print("GET /pending  (a sentence the agent queued -> text and a token, never audio)")
+    from clearvoice_engine import runtime as _runtime
+
+    _runtime.outbox.clear()
+    queued = _runtime.outbox.request("The pharmacy closes at six.", kind="speak")
+    shown = client.get("/pending").json()
+    assert shown["pending"] is True, shown
+    assert "audio_b64" not in shown, "the pane must not be handed playable audio"
+    assert shown["token"] == queued.token
+    assert shown["text"] == "The pharmacy closes at six."
+    print("  text:", shown["text"], "| token len:", len(shown["token"]))
+
+    print("POST /speak  (a wrong token -> refused, and the request survives)")
+    bad = client.post("/speak", json={"approved": True, "token": "not-the-token"})
+    assert bad.status_code == 409, bad.status_code
+    assert client.get("/pending").json()["pending"] is True
+
+    print("POST /speak  (the real token -> the queued sentence is spoken once)")
+    ok = client.post("/speak", json={"approved": True, "token": shown["token"]})
+    assert ok.status_code == 200, ok.text
+    assert ok.json()["text"] == "The pharmacy closes at six."
+    again = client.post("/speak", json={"approved": True, "token": shown["token"]})
+    assert again.status_code == 409, "a token must be single-use"
+    print("  spoken once, refused the second time")
+
+    print("DELETE /pending")
+    _runtime.outbox.request("Something else.")
+    assert client.delete("/pending").json()["discarded"] is True
+    assert client.get("/pending").json()["pending"] is False
+
     print("POST /session/clear")
     cleared = client.post("/session/clear").json()
     print("  ", cleared["message"])

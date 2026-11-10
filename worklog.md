@@ -1,5 +1,40 @@
 # Worklog
 
+## 2026-11-06 (v0.7.2) — the speak gate is real now, and voice downloads are pinned
+
+**Trigger:** catalogue review (Teknium) — "make the speak confirmation real … a
+prompt-injected turn can make the pane say arbitrary text out loud in the user's
+voice", plus "Piper voices download from the main branch with no hash check".
+
+Both were correct. The second is routine; the first was the one claim this plugin
+cannot get wrong, and it was advisory: `confirm_required` was an argument the model
+supplied, and the pane's `/pending` poll autoplayed whatever the handler had
+synthesised. The README and the schema said otherwise.
+
+**Fixed:**
+- tools lost `confirm_required` entirely; `clearvoice_speak` / `clearvoice_say_back`
+  can only queue a sentence (`{"queued": true, "awaiting_user": true, …}`);
+- the queue (`runtime.SpeechQueue`) holds text, a kind, a transcript and a
+  single-use token — **no wav field at all**, enforced by a test;
+- `/pending` returns text + token + seconds left, never audio; `/speak` consumes the
+  token and speaks the queued text (a body `message` is ignored when a token is
+  present), refusing wrong/reused/expired tokens with 409; `DELETE /pending` exists
+  for Discard, and editing the sentence drops the token;
+- pane: polls render a proposal ("ClearVoice is asking to speak this"), the phase
+  goes to *Ready to speak*, and nothing calls `playAudio` until the user's click;
+- `deliver: "file"` stays as the only tool-initiated synthesis, writes a WAV and
+  plays nothing, still behind *Allow speech files*;
+- found on the way: `_read_settings` never read `allow_speech_files`, so file
+  delivery was refused even after the user enabled it — fixed;
+- Piper downloads pinned to `rhasspy/piper-voices@cf910fb5…` and verified against
+  the sha256 Hugging Face publishes (`x-linked-etag`), with size cross-check and a
+  `.part` file that is deleted on mismatch.
+
+**Verified:** 163 tests; a real 63 MB voice downloaded through the pinned URL with
+the digest check; `validate`, `doctor`, `api_selftest` and a syntax check on the
+pane. Catalogue entry still needs re-pinning to the new commit.
+
+
 ## 2026-11-06 (v0.7.1) — repository audit, README rebuilt, honest language table
 
 **Asked:** verify the whole repo for errors and stale claims, make the README feel

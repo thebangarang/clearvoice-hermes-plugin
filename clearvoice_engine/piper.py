@@ -11,7 +11,9 @@ only, and it happens the first time a voice is used.
 
 from __future__ import annotations
 
+import hashlib
 import os
+import re
 import threading
 import urllib.error
 import urllib.request
@@ -72,27 +74,61 @@ def available() -> bool:
     return True
 
 
+_SHA256_HEX = re.compile(r"^[0-9a-f]{64}$")
+
+
 def _download(url: str, target: Path) -> None:
-    """Stream one file to a temp sibling, then rename. Never a half-written model."""
+    """Stream one file to a temp sibling, verify it, then rename.
+
+    Verification: the pinned revision fixes *which* files, and Hugging Face
+    publishes the sha256 of every LFS object in ``x-linked-etag``. When that
+    header is a digest we compare it with what actually arrived, so a corrupted
+    or substituted download is refused instead of loaded by the model runtime.
+    Config JSON files are not LFS objects and arrive without a digest; those are
+    covered by the revision pin alone.
+    """
     if target.exists() and target.stat().st_size > 0:
         return
     tmp = target.with_suffix(target.suffix + ".part")
-    request = urllib.request.Request(url, headers={"User-Agent": "ClearVoice/0.2.0"})
+    request = urllib.request.Request(url, headers={"User-Agent": "ClearVoice/0.3.0"})
+    digest = hashlib.sha256()
+    expected = ""
+    expected_size = 0
     try:
-        with urllib.request.urlopen(request, timeout=120) as response, open(tmp, "wb") as handle:
-            while True:
-                chunk = response.read(1 << 20)
-                if not chunk:
-                    break
-                handle.write(chunk)
+        with urllib.request.urlopen(request, timeout=120) as response:
+            etag = str(response.headers.get("x-linked-etag") or "").strip().strip('"').lower()
+            if _SHA256_HEX.match(etag):
+                expected = etag
+            size_header = str(response.headers.get("x-linked-size") or "").strip()
+            if size_header.isdigit():
+                expected_size = int(size_header)
+            with open(tmp, "wb") as handle:
+                while True:
+                    chunk = response.read(1 << 20)
+                    if not chunk:
+                        break
+                    digest.update(chunk)
+                    handle.write(chunk)
     except (urllib.error.URLError, TimeoutError) as exc:
         tmp.unlink(missing_ok=True)
         raise PiperError(
             "The voice file could not be downloaded. Check the connection, then try again."
         ) from exc
-    if tmp.stat().st_size < 1024:
+    size = tmp.stat().st_size
+    if size < 1024:
         tmp.unlink(missing_ok=True)
         raise PiperError("The voice download was incomplete. Try again.")
+    if expected_size and size != expected_size:
+        tmp.unlink(missing_ok=True)
+        raise PiperError(
+            f"The voice file arrived incomplete ({size} of {expected_size} bytes). Try again."
+        )
+    if expected and digest.hexdigest() != expected:
+        tmp.unlink(missing_ok=True)
+        raise PiperError(
+            "The voice file did not match the published checksum, so it was discarded. "
+            "Nothing was installed from it."
+        )
     os.replace(tmp, target)
 
 

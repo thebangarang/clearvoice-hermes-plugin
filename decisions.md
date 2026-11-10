@@ -5,6 +5,30 @@ rejected. Newest first.
 
 ---
 
+## D-022 — A model may queue a sentence; only a person can make it speak (2026-11-06)
+
+**Decision.** `clearvoice_speak` and `clearvoice_say_back` no longer synthesise
+anything for the room, and `confirm_required` is removed from both schemas. They
+queue text. `/pending` returns that text plus a single-use, 120-second token and
+**no audio**, so polling can never play anything. The pane shows the sentence as a
+proposal, and `/speak` redeems the token only on the user's click — refusing a
+wrong, missing, reused or expired one. Editing the sentence discards the token.
+
+**Why.** Review found that the old flag was a parameter *the model* supplied: a
+prompt-injected turn could call the tool with `confirm_required: false`, the handler
+would synthesise immediately, and the pane's four-second `/pending` poll played
+whatever it found. So "never text the user has not seen" was an instruction in a
+description, not a property of the code — in the one product where that claim is the
+whole argument. The fix moves the gate from a boolean to a capability: the model
+cannot produce audio at all.
+
+**Cost.** A tool call now needs a human press to have any audible effect, which is
+the point, but it means an agent cannot "just speak" in an unattended pipeline.
+`deliver: "file"` remains for that, writes a WAV instead of speaking, and stays off
+until the user enables *Allow speech files*.
+
+---
+
 ## D-021 — The language model path is deleted, not disabled (2026-11-05)
 
 **Decision.** `clearvoice_engine/rewrite_llm.py`, the `reframe_backend` setting, the
