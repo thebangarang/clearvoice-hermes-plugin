@@ -23,3 +23,11 @@ marking = "not applicable — the plugin emits audio to the user's own speakers 
 marking_no_key = "nothing to mark and nothing stored: the plugin writes no audio to disk and publishes no asset, so no marking mechanism and no key exist. The pane is the only surface, and it is the user's own."
 pending = "If the plugin ever gains a share or publish path — exporting the synthesised voice to a file or a platform — 50(2) attaches at that point and this declaration changes with it. Declared, not implemented, and reviewable on the date above."
 due = "2026-12-15"
+
+[egress]
+# R-ISO-013: can anything here be pointed at a URL or host a user chooses?
+# No. The engine speaks to fixed hosts: the local Piper model on this machine, the Gradium speech endpoint as
+# a constant, and the model index it builds from a pinned source. No argument on any tool call reaches a host.
+user_supplied_urls = false
+reason = """clearvoice_engine/cloud.py uses a module constant (GRADIUM_STT_URL); piper.py reads local models;
+scripts/build_piper_index.py fetches a pinned index. Nothing takes a URL from a caller."""
