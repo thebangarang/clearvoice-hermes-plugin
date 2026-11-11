@@ -1,0 +1,25 @@
+# release.toml — ClearVoice, the on-device speech bridge, and where its duties sit.
+#
+# A plugin rather than a service: it transcribes the user's own speech and speaks a sentence back to that
+# same user. Nothing it produces is published, and no audio is stored.
+app = "Clearvoice-hermes-plugin"
+tier = 3
+
+# ---------------------------------------------------------------------------- AI Act (Article 50)
+# R-AI-009 class: limited. Two models run locally (Whisper for recognition, Piper for speech) and no model
+# is called over the network, which is the product's whole privacy claim.
+[ai]
+review_due = "2026-12-15"
+
+[[ai.systems]]
+id = "CV1"
+name = "on-device speech bridge — local recognition of the user's own speech and local synthesis of one edited sentence, 17 languages"
+role = "deployer"
+risk = "limited"
+generative = true
+art50 = []
+not_applicable = "50(1)/50(2): the synthesised audio is a local rendering of the sentence the user typed, played back to that user and never stored or published — there is no audience to tell and no synthetic content released. The duty attaches to whoever publishes a voice's output; this plugin hands the audio to the person who wrote the words. Saying so here is the declaration, because a silent 'no AI' would be false: two models do run."
+marking = "not applicable — the plugin emits audio to the user's own speakers and writes nothing to disk, so there is no asset in circulation to carry a mark. Named rather than omitted, because 'generative' is true and a missing field reads as an oversight; the sentence is the declaration that it is not."
+marking_no_key = "nothing to mark and nothing stored: the plugin writes no audio to disk and publishes no asset, so no marking mechanism and no key exist. The pane is the only surface, and it is the user's own."
+pending = "If the plugin ever gains a share or publish path — exporting the synthesised voice to a file or a platform — 50(2) attaches at that point and this declaration changes with it. Declared, not implemented, and reviewable on the date above."
+due = "2026-12-15"
