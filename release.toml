@@ -31,3 +31,16 @@ due = "2026-12-15"
 user_supplied_urls = false
 reason = """clearvoice_engine/cloud.py uses a module constant (GRADIUM_STT_URL); piper.py reads local models;
 scripts/build_piper_index.py fetches a pinned index. Nothing takes a URL from a caller."""
+
+[llm]
+# R-PRIV-035: does prompt or audio leave this machine, and on what terms?
+# The provider named in the source is Hugging Face, and it is used to FETCH MODELS, not to send anything: the
+# voice engine runs locally (Piper for speech, faster-whisper for transcription). A cloud speech path exists —
+# the Gradium endpoint — and it is opt-in: without a key the engine refuses and says so.
+no_gateway = true
+direct = ["clearvoice_engine/langs.py", "clearvoice_engine/settings.py", "scripts/build_piper_index.py"]
+review_due = "2026-12-31"
+reason = """huggingface is a model source here (repository resolution and the Piper index download), not an inference
+endpoint. By default no audio and no text leaves this machine. The optional cloud transcription path posts
+audio to Gradium (a French provider) only when a key is configured and selected; that switch is the one thing
+to check before saying 'local only' about a given install."""
