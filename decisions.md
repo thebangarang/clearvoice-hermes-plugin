@@ -5,6 +5,30 @@ rejected. Newest first.
 
 ---
 
+## D-023 — The rejected experiment's packages leave the environment (2026-11-12)
+
+**Decision.** `llama-cpp-python` and the `diskcache` it drags in are gone from
+`.venv`. The plugin never imported either; D-017 rejected the small local model on
+measured grounds, and the package stayed installed for six days after the decision.
+
+**Why now, and why not a `# nosec`.** `dep-audit.py status` reported
+`diskcache 5.6.3 — PYSEC-2026-2447` as *real*: DiskCache through 5.6.3 serialises
+with pickle by default, so anyone who can write into the cache directory gets code
+execution when it is read back. No fixed release is published, which makes
+"upgrade" impossible and "accept" the tempting answer. The honest one is that the
+package was not a dependency: `pyproject.toml` names `ptts`, `piper-tts`,
+`faster-whisper` and `numpy`, nothing in the tree imports `diskcache` or
+`llama_cpp`, and nothing else in the venv requires either. Removing an unused
+package is strictly better than recording a risk on it.
+
+**Cost.** None measured: 163 tests pass before and after, every engine imports,
+and `dep-audit.py run` now reads Clearvoice as *no known vulnerabilities*. If the
+model idea is ever revived (D-017 says it is not dead, only not this model on this
+hardware), `llama-cpp-python` comes back carrying the same advisory — pin it
+deliberately and point its cache at a directory only the plugin writes.
+
+---
+
 ## D-022 — A model may queue a sentence; only a person can make it speak (2026-11-06)
 
 **Decision.** `clearvoice_speak` and `clearvoice_say_back` no longer synthesise
