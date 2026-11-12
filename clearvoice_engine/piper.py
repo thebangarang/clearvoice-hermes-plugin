@@ -16,6 +16,7 @@ import os
 import re
 import threading
 import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
 
@@ -77,6 +78,19 @@ def available() -> bool:
 _SHA256_HEX = re.compile(r"^[0-9a-f]{64}$")
 
 
+def _http_url(url: str) -> str:
+    """The voice URL proven to be http(s) before urllib opens it.
+
+    ``urlopen`` reads a ``file://`` URL as happily as an ``https://`` one, and this download writes what it
+    read into the model cache — a substituted scheme would install a local file as a voice model, or copy a
+    local file into a place the runtime loads. The guard is cheap and sits at the one call that fetches
+    anything; bandit's B310 is silenced there with this guard as the reason.
+    """
+    if urllib.parse.urlsplit(url).scheme not in ("http", "https"):
+        raise PiperError("The voice URL was not an http(s) address, so nothing was downloaded.")
+    return url
+
+
 def _download(url: str, target: Path) -> None:
     """Stream one file to a temp sibling, verify it, then rename.
 
@@ -90,12 +104,12 @@ def _download(url: str, target: Path) -> None:
     if target.exists() and target.stat().st_size > 0:
         return
     tmp = target.with_suffix(target.suffix + ".part")
-    request = urllib.request.Request(url, headers={"User-Agent": "ClearVoice/0.3.0"})
+    request = urllib.request.Request(_http_url(url), headers={"User-Agent": "ClearVoice/0.3.0"})
     digest = hashlib.sha256()
     expected = ""
     expected_size = 0
     try:
-        with urllib.request.urlopen(request, timeout=120) as response:
+        with urllib.request.urlopen(request, timeout=120) as response:  # nosec B310 — _http_url() refuses any scheme but http/https
             etag = str(response.headers.get("x-linked-etag") or "").strip().strip('"').lower()
             if _SHA256_HEX.match(etag):
                 expected = etag

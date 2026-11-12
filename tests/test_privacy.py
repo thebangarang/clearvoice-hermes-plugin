@@ -141,9 +141,9 @@ def test_saved_phrases_only_write_on_explicit_save(tmp_path):
     assert phrases.list()[0].text == phrase.text
 
 
-def test_saved_phrases_never_hold_audio():
+def test_saved_phrases_never_hold_audio(tmp_path):
     with pytest.raises(ValueError):
-        privacy.SavedPhrases(Path("/tmp/clearvoice-test-nonexistent")).save_phrase("   ")
+        privacy.SavedPhrases(tmp_path / "nonexistent").save_phrase("   ")
 
 
 def test_cloud_stt_is_refused_when_not_enabled(monkeypatch):

@@ -11,6 +11,7 @@ voice later is the only network call, and only for the voice the user picks.
 from __future__ import annotations
 
 import json
+import urllib.parse
 import urllib.request
 from pathlib import Path
 
@@ -30,7 +31,9 @@ FAMILIES = {
 
 
 def main() -> int:
-    with urllib.request.urlopen(URL, timeout=60) as response:
+    if urllib.parse.urlsplit(URL).scheme not in ("http", "https"):
+        raise SystemExit(f"refused: {URL!r} is not an http(s) URL")
+    with urllib.request.urlopen(URL, timeout=60) as response:  # nosec B310 — scheme checked above, on a module constant
         raw = json.loads(response.read().decode())
 
     voices = []

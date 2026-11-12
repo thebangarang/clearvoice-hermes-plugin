@@ -47,14 +47,28 @@ def require_key(api_key: str | None) -> str:
     return key
 
 
+def _http_url(url: str) -> str:
+    """The endpoint proven to be http(s) before urllib opens it.
+
+    ``urlopen`` reads a ``file://`` URL as happily as an ``https://`` one. The URLs here are built by this
+    module from a constant, so nothing today can pass another scheme — but this is the one place an
+    utterance and its transcript leave the machine, and a read that became a local-file read would send the
+    wrong bytes to a paid API. The scheme is therefore checked at the choke point, and bandit's B310 is
+    silenced there with this guard as its reason rather than in a baseline.
+    """
+    if urllib.parse.urlsplit(url).scheme not in ("http", "https"):
+        raise CloudError("The speech endpoint was not an http(s) address, so nothing was sent.")
+    return url
+
+
 def _post(url: str, *, key: str, body: bytes, content_type: str, timeout: float) -> bytes:
-    request = urllib.request.Request(url, data=body, method="POST")
+    request = urllib.request.Request(_http_url(url), data=body, method="POST")
     request.add_header("x-api-key", key)
     request.add_header("Content-Type", content_type)
     request.add_header("Accept", "*/*")
     request.add_header("User-Agent", USER_AGENT)
     try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
+        with urllib.request.urlopen(request, timeout=timeout) as response:  # nosec B310 — _http_url() refuses any scheme but http/https
             return response.read()
     except urllib.error.HTTPError as exc:
         status = exc.code
